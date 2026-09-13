@@ -1,6 +1,6 @@
 # Change Log
 
-## Unreleased
+## 0.4.4
 
 - Added Explorer context-menu commands to add or remove files and folders from git-crypt targets.
 - Exact path rules are written to the nearest `.gitattributes` without changing broader patterns.
