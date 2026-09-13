@@ -2,7 +2,7 @@
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer",
   "description": "Highlights git-crypt protected files and provides status, lock, unlock, key export, and GPG access commands.",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "YoungmukKang",
   "author": {
     "name": "YoungmukKang",
