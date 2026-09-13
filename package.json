@@ -3,7 +3,7 @@
   "displayName": "Git Crypt Explorer Decorations",
   "description": "Shows git-crypt protected files in the VS Code Explorer.",
   "version": "0.4.0",
-  "publisher": "local-dev",
+  "publisher": "YoungmukKang",
   "license": "MIT",
   "engines": {
     "vscode": "^1.96.0"
