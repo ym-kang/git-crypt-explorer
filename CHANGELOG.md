@@ -1,5 +1,11 @@
 # Change Log
 
+## Unreleased
+
+- Added Explorer context-menu commands to add or remove files and folders from git-crypt targets.
+- Exact path rules are written to the nearest `.gitattributes` without changing broader patterns.
+- Folder targets apply recursively while keeping nested `.gitattributes` files unencrypted.
+
 ## 0.4.1
 
 - Added a dedicated Git Crypt Explorer Activity Bar view.

@@ -15,6 +15,12 @@ interface MutableRepository {
   snapshot: RepositorySnapshot;
 }
 
+export interface RepositoryResource {
+  readonly root: string;
+  readonly absolutePath: string;
+  readonly relativePath: string;
+}
+
 /** Owns repository-level snapshots. Decoration reads never invoke Git. */
 export class GitCryptService {
   private repositories = new Map<string, MutableRepository>();
@@ -97,6 +103,28 @@ export class GitCryptService {
 
   public getRepositoryLocations(): readonly GitRepositoryLocation[] {
     return [...this.repositories.values()].map((repository) => repository.location);
+  }
+
+  public getRepositoryResource(filePath: string): RepositoryResource | undefined {
+    const match = this.repositoryPathForWorkspacePath(filePath);
+    if (!match) {
+      return undefined;
+    }
+    const root = match.repository.location.root;
+    return {
+      root,
+      absolutePath: match.repositoryPath,
+      relativePath: toGitPath(path.relative(root, match.repositoryPath)),
+    };
+  }
+
+  public async isProtectedFile(filePath: string): Promise<boolean | undefined> {
+    const repositoryFile = this.getRepositoryResource(filePath);
+    if (!repositoryFile) {
+      return undefined;
+    }
+    const filters = await this.git.checkFilter(repositoryFile.root, [repositoryFile.relativePath]);
+    return filters.get(repositoryFile.relativePath) === 'git-crypt';
   }
 
   private async refresh(repository: MutableRepository): Promise<void> {
@@ -259,4 +287,8 @@ function isWithin(parent: string, candidate: string): boolean {
 
 function safeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown Git error.';
+}
+
+function toGitPath(filePath: string): string {
+  return filePath.split(path.sep).join('/');
 }

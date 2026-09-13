@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
@@ -74,6 +74,24 @@ test('supports a repository without .gitattributes', async (t) => {
 
   assert.equal(service.getStatus(path.join(root, 'plain.txt')), 'none');
   assert.equal(service.getWorkspaceStatus().repositories[0]?.gitCryptDetected, false);
+});
+
+test('checks the effective filter for a file even when it is not in the scan', async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt\n',
+    '.gitignore': '*.secret\n',
+    'ignored.secret': 'fixture\n',
+  });
+  const service = await initialize(root);
+
+  assert.equal(service.getStatus(path.join(root, 'ignored.secret')), 'none');
+  assert.equal(await service.isProtectedFile(path.join(root, 'ignored.secret')), true);
+  const canonicalRoot = await realpath(root);
+  assert.deepEqual(service.getRepositoryResource(path.join(root, 'ignored.secret')), {
+    root: canonicalRoot,
+    absolutePath: path.join(canonicalRoot, 'ignored.secret'),
+    relativePath: 'ignored.secret',
+  });
 });
 
 test('handles a non-Git workspace without throwing', async (t) => {

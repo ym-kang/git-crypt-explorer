@@ -1,6 +1,7 @@
 # Architecture
 
-The extension has a small read-only pipeline:
+The passive inspection pipeline is read-only. Explicit user commands follow separate mutation
+paths:
 
 ```text
 VS Code events / commands
@@ -18,6 +19,7 @@ Explorer render -> FileDecorationProvider -> synchronous snapshot Map lookup
 Activity Bar render -> TreeDataProvider -> repository snapshots and protected-file groups
 
 Explicit repository/key command -> modal confirmation -> GitCryptCli -> git-crypt child process
+Explorer file command -> exact path override -> nearest .gitattributes -> refresh
 ```
 
 ## Boundaries
@@ -35,6 +37,8 @@ Explicit repository/key command -> modal confirmation -> GitCryptCli -> git-cryp
 - `src/workspaceController.ts` owns watchers, 300 ms debounce, serialized refreshes, and Git-dir
   watcher lifecycle, then signals both UI providers after a refresh.
 - `src/commands` contains user-facing command adapters.
+- `src/gitCrypt/gitAttributes.ts` generates exact file and recursive folder rules while preserving
+  line endings and replacing prior rules generated for the same path.
 - `src/extension.ts` is composition and registration only.
 
 ## Refresh cost

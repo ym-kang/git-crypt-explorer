@@ -7,6 +7,7 @@ import { registerLockRepositoryCommand } from './commands/lockRepository';
 import { registerRefreshCommand } from './commands/refresh';
 import { registerShowStatusCommand } from './commands/showStatus';
 import { registerUnlockWithGpgCommand } from './commands/unlockWithGpg';
+import { registerFileProtectionCommands } from './commands/updateFileProtection';
 import { GitCryptDecorationProvider } from './decorations/gitCryptDecorationProvider';
 import { GitCryptCli } from './gitCrypt/gitCryptCli';
 import { GitCryptService } from './gitCrypt/gitCryptService';
@@ -48,6 +49,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerUnlockWithGpgCommand(service, cli, () => controller.refreshNow()),
     registerLockRepositoryCommand(service, cli, () => controller.refreshNow()),
     registerAddGpgUserCommand(service, cli),
+    registerFileProtectionCommands(service, () => controller.refreshNow()),
   );
 
   refreshTreeView();

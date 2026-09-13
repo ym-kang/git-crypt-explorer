@@ -1,7 +1,7 @@
 {
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer",
-  "description": "Highlights git-crypt protected files and provides status, lock, unlock, key export, and GPG access commands.",
+  "description": "Highlights git-crypt protected files and provides target management, status, lock, unlock, key export, and GPG access commands.",
   "version": "0.4.3",
   "publisher": "YoungmukKang",
   "author": {
@@ -49,7 +49,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "The extension executes read-only Git CLI commands in the workspace."
+      "description": "The extension runs Git commands and can explicitly update .gitattributes in the workspace."
     },
     "virtualWorkspaces": {
       "supported": false,
@@ -104,6 +104,16 @@
         "command": "gitCryptDecorations.addGpgUser",
         "title": "Add GPG User (No Auto-Commit)",
         "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.protectFile",
+        "title": "Add to Encryption Targets",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.unprotectFile",
+        "title": "Remove from Encryption Targets",
+        "category": "Git Crypt"
       }
     ],
     "viewsContainers": {
@@ -126,6 +136,18 @@
       ]
     },
     "menus": {
+      "explorer/context": [
+        {
+          "command": "gitCryptDecorations.protectFile",
+          "when": "resourceScheme == file",
+          "group": "gitCrypt@1"
+        },
+        {
+          "command": "gitCryptDecorations.unprotectFile",
+          "when": "resourceScheme == file",
+          "group": "gitCrypt@2"
+        }
+      ],
       "view/title": [
         {
           "command": "gitCryptDecorations.refresh",

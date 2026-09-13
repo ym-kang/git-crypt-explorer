@@ -12,6 +12,7 @@ with an existing symmetric key and export the currently installed key.
 - Shows a `!` warning when a target is untracked, conflicted, non-regular in the index, or has a
   plaintext index blob.
 - Adds a dedicated Activity Bar view with repository summaries, protected files, and warnings.
+- Adds or removes file and folder encryption targets from the Explorer context menu.
 - Propagates the decoration to parent folders so protected content is easier to find.
 - Supports multiple workspace folders and deduplicates folders belonging to the same repository.
 - Refreshes after `.gitattributes`, file-list, branch, checkout, or index changes.
@@ -44,7 +45,7 @@ Keep the repository's normal `.gitattributes` rules, for example:
 ```gitattributes
 *.env filter=git-crypt diff=git-crypt
 secrets/** filter=git-crypt diff=git-crypt
-public.env -filter -diff
+public.env !filter !diff
 ```
 
 No extension-specific configuration file is required. The effective attribute is resolved by
@@ -81,6 +82,11 @@ Add an Explorer screenshot here before publishing:
 
 ## Commands
 
+- **Git Crypt: Add to Encryption Targets** — available from the Explorer context menu; adds an
+  exact file rule or a recursive folder rule to the nearest `.gitattributes` file. Nested
+  `.gitattributes` files are excluded from recursive encryption.
+- **Git Crypt: Remove from Encryption Targets** — adds an exact file or recursive folder override,
+  leaving broader rules intact while restoring normal attributes for the selected path.
 - **Git Crypt: Refresh Decorations** — rediscovers the workspace and rebuilds every repository
   cache.
 - **Git Crypt: Show Status** — opens an output report with Git detection, git-crypt detection,
@@ -102,6 +108,9 @@ Add an Explorer screenshot here before publishing:
 
 Low-level filter commands (`clean`, `smudge`, `diff`, and `cat`), legacy key commands, automatic
 `status --fix`, and destructive `lock --force` are intentionally not exposed.
+
+The context-menu commands update and save `.gitattributes`, but do not stage files. Stage both the
+affected files and `.gitattributes` when you are ready to update the Git index and commit the rule.
 
 ## Settings
 
