@@ -13,7 +13,9 @@ export interface RepositorySnapshot {
   readonly root: string;
   readonly gitDir: string;
   readonly statuses: ReadonlyMap<string, GitCryptStatus>;
+  readonly statusDetails: ReadonlyMap<string, string>;
   readonly protectedFiles: number;
+  readonly encryptedIndexFiles: number;
   readonly warnings: number;
   readonly gitCryptDetected: boolean;
   readonly error?: string;

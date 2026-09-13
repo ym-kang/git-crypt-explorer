@@ -1,5 +1,15 @@
 # Change Log
 
+## 0.4.0
+
+- Added batched Git index blob inspection using `git ls-files --stage -z` and
+  `git cat-file --batch`.
+- The lock badge now requires both `filter=git-crypt` and a git-crypt header in the stage-0 index
+  blob.
+- Added warning decorations for missing, conflicted, non-regular, and plaintext index entries.
+- Added immutable object-ID caching and encrypted-index counts to **Git Crypt: Show Status**.
+- Added parser, plaintext, empty-blob, cache, path, and real git-crypt integration tests.
+
 ## 0.3.0
 
 - Added new-repository initialization and GPG-based unlock.

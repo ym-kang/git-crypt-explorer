@@ -7,8 +7,10 @@ with an existing symmetric key and export the currently installed key.
 
 ## Features
 
-- Shows a `🔒` badge on files whose effective Git `filter` attribute is `git-crypt`.
-- Shows the tooltip **Protected by git-crypt**.
+- Shows a `🔒` badge when a file is a `git-crypt` target and its staged Git index blob has
+  the git-crypt header.
+- Shows a `!` warning when a target is untracked, conflicted, non-regular in the index, or has a
+  plaintext index blob.
 - Propagates the decoration to parent folders so protected content is easier to find.
 - Supports multiple workspace folders and deduplicates folders belonging to the same repository.
 - Refreshes after `.gitattributes`, file-list, branch, checkout, or index changes.
@@ -51,12 +53,14 @@ Git, including nested `.gitattributes` files and override rules.
 
 | Decoration | Meaning | Tooltip |
 | --- | --- | --- |
-| `🔒` | Effective `filter` value is `git-crypt` | Protected by git-crypt |
+| `🔒` | `filter=git-crypt` and the stage-0 index blob has the git-crypt header | Protected by git-crypt (encrypted in Git index) |
+| `!` | git-crypt target, but its index entry is missing, conflicted, non-regular, or plaintext | The detected index problem |
 | none | File is not a git-crypt target | — |
 
-The internal status model also reserves `warning`, but warning detection is not enabled in the
-MVP. VS Code's `FileDecoration` badge accepts a very short string, not a `ThemeIcon`, so a lock
-character is used instead of a Codicon.
+The check concerns the staged/index copy, which is what a commit would contain. In an unlocked
+repository the working-tree file can remain plaintext while still showing `🔒`, because its index
+blob is encrypted. VS Code's `FileDecoration` badge accepts a very short string, not a `ThemeIcon`,
+so a lock character is used instead of a Codicon.
 
 ## Screenshot
 
@@ -71,7 +75,8 @@ Add an Explorer screenshot here before publishing:
 - **Git Crypt: Refresh Decorations** — rediscovers the workspace and rebuilds every repository
   cache.
 - **Git Crypt: Show Status** — opens an output report with Git detection, git-crypt detection,
-  CLI availability, local initialization state, protected file count, and warning count.
+  CLI availability, local initialization state, target count, encrypted-index count, and warning
+  count.
 - **Git Crypt: Initialize/Unlock with Existing Key** — selects an existing symmetric key and runs
   `git-crypt unlock KEY_FILE`. This can decrypt protected working-tree files and requires a clean
   tracked working tree.
@@ -106,21 +111,31 @@ At refresh time, each repository is queried with:
 ```text
 git ls-files -z --cached --others --exclude-standard
 git check-attr -z --stdin filter
+git ls-files --stage -z
+git cat-file --batch
 ```
 
 The first command lists tracked and non-ignored untracked files. All paths are sent to one
 `git check-attr` process using NUL delimiters. A file is protected only when Git reports the exact
-value `git-crypt`. Explorer rendering only performs an in-memory map lookup; it never starts a
-process per file.
+value `git-crypt`. For matching paths, stage-0 regular-file object IDs are collected from the
+index. Missing object IDs are sent together to one `git cat-file --batch` process. A blob is shown
+as encrypted when its first 10 bytes equal git-crypt's `00 47 49 54 43 52 59 50 54 00` magic
+header. Explorer rendering only performs an in-memory map lookup; it never starts a process per
+file.
 
 The cache is atomically replaced after a successful scan; the last good snapshot is retained if
-Git temporarily fails. Changes are debounced for 300 ms.
+Git temporarily fails. Blob results are cached by immutable Git object ID and pruned to object IDs
+used by the current protected targets. Changes are debounced for 300 ms.
 Watchers cover `.gitattributes`, file creation/deletion, and Git `HEAD`, index, packed refs, and
 refs. The manual refresh also rediscovers workspace repositories.
 
 ## Limitations
 
-- Warning detection is reserved for a later release and currently reports zero warnings.
+- The encrypted check recognizes the same 10-byte header used by git-crypt's own status logic. It
+  detects whether an index blob looks encrypted; it does not authenticate the ciphertext or prove
+  that it can be decrypted with the locally installed key.
+- Only the index blob is checked. Unstaged working-tree changes do not affect the badge until the
+  index changes, such as after `git add`.
 - Decoration and key-management UI currently target the default `git-crypt` filter/key. Named-key
   initialization, export, and GPG grants remain CLI-only; repository lock uses `--all` and unlock
   lets git-crypt determine the key automatically.
@@ -135,7 +150,9 @@ refs. The manual refresh also rediscovers workspace repositories.
 - Only local/file-scheme workspaces are supported because Git CLI execution requires filesystem
   paths. In Remote Development, the extension runs in the workspace extension host.
 - The badge glyph depends on the UI font and platform rendering.
-- Very large repositories are bounded by a 64 MiB Git output safety limit.
+- File-list and attribute output are bounded by a 64 MiB safety limit. Initial inspection of new
+  protected object IDs streams each complete blob from `git cat-file`; only its first 10 bytes are
+  retained for comparison, and later refreshes reuse the object-ID cache.
 
 ## Development
 
@@ -170,8 +187,11 @@ root.
 
 ## Security
 
-Decoration and status scans process only repository paths, Git attribute values, CLI version, and
-the presence/count of locally installed key entries. They do not read protected file or key bytes.
+Decoration and status scans process repository paths, Git attribute values, index metadata, CLI
+version, and the presence/count of locally installed key entries. They never open working-tree
+secret files or key files. Index inspection streams blob data from Git, retains only the first 10
+bytes long enough to compare the git-crypt header, clears that temporary prefix buffer, and does
+not log blob data.
 
 Key operations run only from explicit Command Palette actions after file selection and a modal
 confirmation:

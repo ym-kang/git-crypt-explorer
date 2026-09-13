@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+const MAX_ERROR_BYTES = 1024 * 1024;
+const GIT_CRYPT_HEADER = Buffer.from([0x00, 0x47, 0x49, 0x54, 0x43, 0x52, 0x59, 0x50, 0x54, 0x00]);
 
 export class GitCommandError extends Error {
   public constructor(
@@ -20,6 +22,13 @@ export interface GitRepositoryLocation {
   readonly workspacePrefix: string;
 }
 
+export interface GitIndexEntry {
+  readonly path: string;
+  readonly mode: string;
+  readonly objectId: string;
+  readonly stage: number;
+}
+
 export interface GitClientLike {
   discover(cwd: string): Promise<GitRepositoryLocation>;
   listFiles(repositoryRoot: string): Promise<readonly string[]>;
@@ -27,6 +36,11 @@ export interface GitClientLike {
     repositoryRoot: string,
     repositoryRelativePaths: readonly string[],
   ): Promise<ReadonlyMap<string, string>>;
+  listIndexEntries(repositoryRoot: string): Promise<readonly GitIndexEntry[]>;
+  checkBlobEncryption(
+    repositoryRoot: string,
+    objectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, boolean>>;
 }
 
 interface GitResult {
@@ -34,7 +48,7 @@ interface GitResult {
   readonly stderr: Buffer;
 }
 
-/** Runs read-only Git queries. It never invokes git-crypt or reads file contents. */
+/** Runs read-only Git queries. It never invokes git-crypt or reads working-tree file contents. */
 export class GitClient implements GitClientLike {
   public constructor(private readonly executable = 'git') {}
 
@@ -81,6 +95,25 @@ export class GitClient implements GitClientLike {
       input,
     );
     return parseCheckAttrOutput(result.stdout);
+  }
+
+  public async listIndexEntries(repositoryRoot: string): Promise<readonly GitIndexEntry[]> {
+    const result = await this.run(
+      ['-C', repositoryRoot, 'ls-files', '--stage', '-z'],
+      repositoryRoot,
+    );
+    return parseIndexEntries(result.stdout);
+  }
+
+  public checkBlobEncryption(
+    repositoryRoot: string,
+    objectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, boolean>> {
+    const uniqueObjectIds = [...new Set(objectIds)];
+    if (uniqueObjectIds.length === 0) {
+      return Promise.resolve(new Map());
+    }
+    return inspectBlobsWithCatFile(this.executable, repositoryRoot, uniqueObjectIds);
   }
 
   private run(args: readonly string[], cwd: string, input?: Buffer): Promise<GitResult> {
@@ -186,6 +219,209 @@ export function parseCheckAttrOutput(output: Buffer): ReadonlyMap<string, string
   }
 
   return result;
+}
+
+export function parseIndexEntries(output: Buffer): readonly GitIndexEntry[] {
+  const entries: GitIndexEntry[] = [];
+  for (const record of splitNul(output)) {
+    const tab = record.indexOf('\t');
+    if (tab < 0) {
+      throw new GitCommandError('Git returned malformed index data.', false);
+    }
+    const metadata = record.slice(0, tab).split(' ');
+    const mode = metadata[0];
+    const objectId = metadata[1];
+    const stageText = metadata[2];
+    const stage = Number(stageText);
+    if (!mode || !objectId || !stageText || !Number.isInteger(stage)) {
+      throw new GitCommandError('Git returned malformed index metadata.', false);
+    }
+    entries.push({ mode, objectId, stage, path: record.slice(tab + 1) });
+  }
+  return entries;
+}
+
+function inspectBlobsWithCatFile(
+  executable: string,
+  repositoryRoot: string,
+  objectIds: readonly string[],
+): Promise<ReadonlyMap<string, boolean>> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, ['-C', repositoryRoot, 'cat-file', '--batch'], {
+      cwd: repositoryRoot,
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    const results = new Map<string, boolean>();
+    const stderr: Buffer[] = [];
+    let stderrBytes = 0;
+    let objectIndex = 0;
+    let headerBuffer = Buffer.alloc(0);
+    let awaitingContentDelimiter = false;
+    let current:
+      | {
+          readonly requestedId: string;
+          remaining: number;
+          readonly prefix: Buffer;
+          prefixBytes: number;
+        }
+      | undefined;
+    let settled = false;
+
+    const fail = (error: Error): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      current?.prefix.fill(0);
+      child.kill();
+      reject(error);
+    };
+
+    child.once('error', (error: NodeJS.ErrnoException) => {
+      fail(
+        new GitCommandError(
+          error.code === 'ENOENT' ? 'Git is not installed or is not available on PATH.' : error.message,
+          error.code === 'ENOENT',
+        ),
+      );
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrBytes += chunk.length;
+      if (stderrBytes <= MAX_ERROR_BYTES) {
+        stderr.push(chunk);
+      }
+    });
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      let offset = 0;
+      while (offset < chunk.length && !settled) {
+        if (awaitingContentDelimiter) {
+          if (chunk[offset] !== 0x0a) {
+            fail(new GitCommandError('Git returned malformed batch blob data.', false));
+            return;
+          }
+          awaitingContentDelimiter = false;
+          offset += 1;
+          continue;
+        }
+
+        if (current) {
+          const available = Math.min(current.remaining, chunk.length - offset);
+          const prefixAvailable = Math.min(
+            GIT_CRYPT_HEADER.length - current.prefixBytes,
+            available,
+          );
+          if (prefixAvailable > 0) {
+            chunk.copy(
+              current.prefix,
+              current.prefixBytes,
+              offset,
+              offset + prefixAvailable,
+            );
+            current.prefixBytes += prefixAvailable;
+          }
+          current.remaining -= available;
+          offset += available;
+
+          if (current.remaining === 0) {
+            const encrypted =
+              current.prefixBytes === GIT_CRYPT_HEADER.length &&
+              current.prefix.equals(GIT_CRYPT_HEADER);
+            results.set(current.requestedId, encrypted);
+            current.prefix.fill(0);
+            current = undefined;
+            objectIndex += 1;
+            awaitingContentDelimiter = true;
+          }
+          continue;
+        }
+
+        const newline = chunk.indexOf(0x0a, offset);
+        if (newline < 0) {
+          headerBuffer = Buffer.concat([headerBuffer, chunk.subarray(offset)]);
+          if (headerBuffer.length > 256) {
+            fail(new GitCommandError('Git returned an oversized batch header.', false));
+          }
+          return;
+        }
+
+        const header = Buffer.concat([headerBuffer, chunk.subarray(offset, newline)]).toString(
+          'ascii',
+        );
+        headerBuffer = Buffer.alloc(0);
+        offset = newline + 1;
+        const requestedId = objectIds[objectIndex];
+        if (!requestedId) {
+          fail(new GitCommandError('Git returned unexpected batch output.', false));
+          return;
+        }
+        if (header.endsWith(' missing')) {
+          results.set(requestedId, false);
+          objectIndex += 1;
+          continue;
+        }
+        const fields = header.split(' ');
+        const type = fields[1];
+        const size = Number(fields[2]);
+        if (!type || !Number.isSafeInteger(size) || size < 0) {
+          fail(new GitCommandError('Git returned malformed batch metadata.', false));
+          return;
+        }
+        current = {
+          requestedId,
+          remaining: size,
+          prefix: Buffer.alloc(GIT_CRYPT_HEADER.length),
+          prefixBytes: 0,
+        };
+        if (size === 0) {
+          results.set(requestedId, false);
+          current.prefix.fill(0);
+          current = undefined;
+          objectIndex += 1;
+          awaitingContentDelimiter = true;
+        }
+      }
+    });
+
+    child.once('close', (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      current?.prefix.fill(0);
+      if (code !== 0) {
+        const detail = Buffer.concat(stderr).toString('utf8').trim();
+        reject(
+          new GitCommandError(
+            detail || `Git cat-file exited with code ${code ?? 'unknown'}.`,
+            false,
+            code ?? undefined,
+          ),
+        );
+        return;
+      }
+      if (
+        objectIndex !== objectIds.length ||
+        current !== undefined ||
+        headerBuffer.length > 0 ||
+        awaitingContentDelimiter
+      ) {
+        reject(new GitCommandError('Git returned incomplete batch blob data.', false));
+        return;
+      }
+      resolve(results);
+    });
+
+    child.stdin.once('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'EPIPE') {
+        fail(new GitCommandError(error.message, false));
+      }
+    });
+    child.stdin.end(`${objectIds.join('\n')}\n`, 'ascii');
+  });
 }
 
 function splitNul(buffer: Buffer): string[] {

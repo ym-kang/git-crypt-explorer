@@ -20,7 +20,7 @@ export class GitCryptDecorationProvider implements vscode.FileDecorationProvider
     if (status === 'encrypted') {
       const decoration = new vscode.FileDecoration(
         '🔒',
-        'Protected by git-crypt',
+        'Protected by git-crypt (encrypted in Git index)',
         new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
       );
       decoration.propagate = true;
@@ -30,7 +30,7 @@ export class GitCryptDecorationProvider implements vscode.FileDecorationProvider
     if (status === 'warning') {
       const decoration = new vscode.FileDecoration(
         '!',
-        'git-crypt protection warning',
+        this.service.getStatusDetail(uri.fsPath) ?? 'git-crypt protection warning',
         new vscode.ThemeColor('list.warningForeground'),
       );
       decoration.propagate = true;

@@ -3,6 +3,7 @@ import {
   GitClient,
   GitClientLike,
   GitCommandError,
+  GitIndexEntry,
   GitRepositoryLocation,
 } from '../git/gitClient';
 import { GitCryptStatus, RepositorySnapshot, WorkspaceStatus } from './types';
@@ -10,6 +11,7 @@ import { GitCryptStatus, RepositorySnapshot, WorkspaceStatus } from './types';
 interface MutableRepository {
   readonly location: GitRepositoryLocation;
   readonly mounts: Map<string, string>;
+  blobEncryptionCache: Map<string, boolean>;
   snapshot: RepositorySnapshot;
 }
 
@@ -52,6 +54,7 @@ export class GitCryptService {
         next.set(key, {
           location,
           mounts: new Map(),
+          blobEncryptionCache: previous?.blobEncryptionCache ?? new Map(),
           snapshot: previous?.snapshot ?? emptySnapshot(location),
         });
       }
@@ -71,6 +74,11 @@ export class GitCryptService {
       return 'none';
     }
     return match.repository.snapshot.statuses.get(match.repositoryPath) ?? 'none';
+  }
+
+  public getStatusDetail(filePath: string): string | undefined {
+    const match = this.repositoryPathForWorkspacePath(filePath);
+    return match?.repository.snapshot.statusDetails.get(match.repositoryPath);
   }
 
   public getWorkspaceStatus(): WorkspaceStatus {
@@ -93,25 +101,68 @@ export class GitCryptService {
 
   private async refresh(repository: MutableRepository): Promise<void> {
     try {
-      const files = await this.git.listFiles(repository.location.root);
+      const [files, indexEntries] = await Promise.all([
+        this.git.listFiles(repository.location.root),
+        this.git.listIndexEntries(repository.location.root),
+      ]);
       const filters = await this.git.checkFilter(repository.location.root, files);
       const statuses = new Map<string, GitCryptStatus>();
-      let protectedFiles = 0;
+      const statusDetails = new Map<string, string>();
+      const entriesByPath = groupIndexEntries(indexEntries);
+      const targets = files.filter((file) => filters.get(file) === 'git-crypt');
+      const targetObjectIds = new Map<string, string>();
 
-      for (const file of files) {
-        if (filters.get(file) === 'git-crypt') {
-          statuses.set(path.resolve(repository.location.root, file), 'encrypted');
-          protectedFiles += 1;
+      for (const file of targets) {
+        const entries = entriesByPath.get(file) ?? [];
+        const stageZero = entries.find((entry) => entry.stage === 0);
+        if (stageZero && isRegularFileMode(stageZero.mode)) {
+          targetObjectIds.set(file, stageZero.objectId);
         }
       }
+
+      const objectIds = [...new Set(targetObjectIds.values())];
+      const missingObjectIds = objectIds.filter(
+        (objectId) => !repository.blobEncryptionCache.has(objectId),
+      );
+      const inspected = await this.git.checkBlobEncryption(
+        repository.location.root,
+        missingObjectIds,
+      );
+      const nextBlobCache = new Map<string, boolean>();
+      for (const objectId of objectIds) {
+        const encrypted =
+          repository.blobEncryptionCache.get(objectId) ?? inspected.get(objectId) ?? false;
+        nextBlobCache.set(objectId, encrypted);
+      }
+
+      let encryptedIndexFiles = 0;
+      let warnings = 0;
+      for (const file of targets) {
+        const absolutePath = path.resolve(repository.location.root, file);
+        const entries = entriesByPath.get(file) ?? [];
+        const objectId = targetObjectIds.get(file);
+        if (objectId && nextBlobCache.get(objectId) === true) {
+          statuses.set(absolutePath, 'encrypted');
+          encryptedIndexFiles += 1;
+          continue;
+        }
+
+        statuses.set(absolutePath, 'warning');
+        warnings += 1;
+        statusDetails.set(absolutePath, warningDetail(entries, objectId));
+      }
+
+      repository.blobEncryptionCache = nextBlobCache;
 
       repository.snapshot = {
         root: repository.location.root,
         gitDir: repository.location.gitDir,
         statuses,
-        protectedFiles,
-        warnings: 0,
-        gitCryptDetected: protectedFiles > 0,
+        statusDetails,
+        protectedFiles: targets.length,
+        encryptedIndexFiles,
+        warnings,
+        gitCryptDetected: targets.length > 0,
       };
     } catch (error) {
       repository.snapshot = {
@@ -162,10 +213,40 @@ function emptySnapshot(location: GitRepositoryLocation): RepositorySnapshot {
     root: location.root,
     gitDir: location.gitDir,
     statuses: new Map(),
+    statusDetails: new Map(),
     protectedFiles: 0,
+    encryptedIndexFiles: 0,
     warnings: 0,
     gitCryptDetected: false,
   };
+}
+
+function groupIndexEntries(
+  entries: readonly GitIndexEntry[],
+): ReadonlyMap<string, readonly GitIndexEntry[]> {
+  const grouped = new Map<string, GitIndexEntry[]>();
+  for (const entry of entries) {
+    const current = grouped.get(entry.path) ?? [];
+    current.push(entry);
+    grouped.set(entry.path, current);
+  }
+  return grouped;
+}
+
+function isRegularFileMode(mode: string): boolean {
+  return (Number.parseInt(mode, 8) & 0o170000) === 0o100000;
+}
+
+function warningDetail(entries: readonly GitIndexEntry[], objectId?: string): string {
+  if (entries.length === 0) {
+    return 'git-crypt target is not present in the Git index.';
+  }
+  if (!objectId) {
+    return entries.some((entry) => entry.stage !== 0)
+      ? 'git-crypt target has unresolved index stages.'
+      : 'git-crypt target is not a regular file in the Git index.';
+  }
+  return 'git-crypt target has an unencrypted Git index blob.';
 }
 
 function isWithin(parent: string, candidate: string): boolean {

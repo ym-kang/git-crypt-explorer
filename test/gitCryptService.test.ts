@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 import { test, TestContext } from 'node:test';
-import { GitClient, GitClientLike, GitRepositoryLocation } from '../src/git/gitClient';
+import {
+  GitClient,
+  GitClientLike,
+  GitIndexEntry,
+  GitRepositoryLocation,
+} from '../src/git/gitClient';
 import { GitCryptService } from '../src/gitCrypt/gitCryptService';
 
 const execFileAsync = promisify(execFile);
@@ -21,15 +26,46 @@ test('classifies a normal file as none', async (t) => {
   assert.equal(service.getWorkspaceStatus().repositories[0]?.protectedFiles, 0);
 });
 
-test('classifies filter=git-crypt files as encrypted', async (t) => {
+test('classifies a git-crypt target with an encrypted index blob as encrypted', async (t) => {
   const root = await createRepository(t, {
     '.gitattributes': '*.secret filter=git-crypt diff=git-crypt\n',
     'config.secret': 'fixture\n',
   });
+  await stageBlob(root, 'config.secret', true);
   const service = await initialize(root);
 
   assert.equal(service.getStatus(path.join(root, 'config.secret')), 'encrypted');
   assert.equal(service.getWorkspaceStatus().repositories[0]?.gitCryptDetected, true);
+  assert.equal(service.getWorkspaceStatus().repositories[0]?.encryptedIndexFiles, 1);
+});
+
+test('warns when a git-crypt target is not present in the index', async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt\n',
+    'config.secret': 'fixture\n',
+  });
+  const service = await initialize(root);
+
+  assert.equal(service.getStatus(path.join(root, 'config.secret')), 'warning');
+  assert.match(
+    service.getStatusDetail(path.join(root, 'config.secret')) ?? '',
+    /not present in the Git index/u,
+  );
+});
+
+test('warns when a git-crypt target has a plaintext index blob', async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt\n',
+    'config.secret': 'fixture\n',
+  });
+  await stageBlob(root, 'config.secret', false);
+  const service = await initialize(root);
+
+  assert.equal(service.getStatus(path.join(root, 'config.secret')), 'warning');
+  assert.match(
+    service.getStatusDetail(path.join(root, 'config.secret')) ?? '',
+    /unencrypted Git index blob/u,
+  );
 });
 
 test('supports a repository without .gitattributes', async (t) => {
@@ -63,6 +99,7 @@ test('handles a protected path containing spaces', async (t) => {
     '.gitattributes': '*.env filter=git-crypt\n',
     'config/production secret.env': 'fixture\n',
   });
+  await stageBlob(root, 'config/production secret.env', true);
   const service = await initialize(root);
 
   assert.equal(
@@ -77,6 +114,7 @@ test('uses nested .gitattributes rules resolved by Git', async (t) => {
     'nested/credentials.json': 'fixture\n',
     'outside.json': 'fixture\n',
   });
+  await stageBlob(root, 'nested/credentials.json', true);
   const service = await initialize(root);
 
   assert.equal(service.getStatus(path.join(root, 'nested', 'credentials.json')), 'encrypted');
@@ -88,6 +126,7 @@ test('maps a repository subdirectory opened as the workspace root', async (t) =>
     '.gitattributes': '*.env filter=git-crypt\n',
     'nested/config.env': 'fixture\n',
   });
+  await stageBlob(root, 'nested/config.env', true);
   const service = await initialize(path.join(root, 'nested'));
 
   assert.equal(service.getStatus(path.join(root, 'nested', 'config.env')), 'encrypted');
@@ -99,6 +138,7 @@ test('honors attribute override rules resolved by Git', async (t) => {
     'private.env': 'fixture\n',
     'public.env': 'fixture\n',
   });
+  await stageBlob(root, 'private.env', true);
   const service = await initialize(root);
 
   assert.equal(service.getStatus(path.join(root, 'private.env')), 'encrypted');
@@ -110,6 +150,7 @@ test('rebuilds cached status after .gitattributes changes', async (t) => {
     '.gitattributes': '*.env filter=git-crypt\n',
     'config.env': 'fixture\n',
   });
+  await stageBlob(root, 'config.env', true);
   const service = await initialize(root);
   assert.equal(service.getStatus(path.join(root, 'config.env')), 'encrypted');
 
@@ -124,6 +165,7 @@ test('keeps independent snapshots for a multi-root workspace', async (t) => {
     '.gitattributes': '*.key filter=git-crypt\n',
     'first.key': 'fixture\n',
   });
+  await stageBlob(first, 'first.key', true);
   const second = await createRepository(t, {
     'second.txt': 'fixture\n',
   });
@@ -152,10 +194,50 @@ test('checks all repository paths in one attribute batch', async (t) => {
   assert.equal(countingGit.lastBatchSize, 4);
 });
 
+test('checks each index object once and reuses the repository object-id cache', async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt\n',
+    'one.secret': 'same fixture\n',
+    'two.secret': 'same fixture\n',
+  });
+  await stageBlob(root, 'one.secret', true);
+  await stageBlob(root, 'two.secret', true);
+  const countingGit = new CountingGitClient();
+  const service = new GitCryptService(countingGit);
+
+  await service.initialize([root]);
+  await service.refreshAll();
+
+  assert.equal(countingGit.nonEmptyBlobChecks, 1);
+  assert.equal(countingGit.checkedObjectIds[0]?.length, 1);
+});
+
+test('detects a blob produced by a real git-crypt clean filter when available', async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt diff=git-crypt\n',
+    'config.secret': 'test-only plaintext fixture\n',
+  });
+  try {
+    await execFileAsync('git-crypt', ['--version'], { cwd: root });
+  } catch {
+    t.skip('git-crypt is not installed');
+    return;
+  }
+  await execFileAsync('git-crypt', ['init'], { cwd: root });
+  await execFileAsync('git', ['add', '--', '.gitattributes', 'config.secret'], { cwd: root });
+
+  const service = await initialize(root);
+
+  assert.equal(service.getStatus(path.join(root, 'config.secret')), 'encrypted');
+  assert.equal(service.getWorkspaceStatus().repositories[0]?.warnings, 0);
+});
+
 class CountingGitClient implements GitClientLike {
   private readonly delegate = new GitClient();
   public checkFilterCalls = 0;
   public lastBatchSize = 0;
+  public nonEmptyBlobChecks = 0;
+  public checkedObjectIds: string[][] = [];
 
   public discover(cwd: string): Promise<GitRepositoryLocation> {
     return this.delegate.discover(cwd);
@@ -172,6 +254,21 @@ class CountingGitClient implements GitClientLike {
     this.checkFilterCalls += 1;
     this.lastBatchSize = repositoryRelativePaths.length;
     return this.delegate.checkFilter(repositoryRoot, repositoryRelativePaths);
+  }
+
+  public listIndexEntries(repositoryRoot: string): Promise<readonly GitIndexEntry[]> {
+    return this.delegate.listIndexEntries(repositoryRoot);
+  }
+
+  public checkBlobEncryption(
+    repositoryRoot: string,
+    objectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, boolean>> {
+    if (objectIds.length > 0) {
+      this.nonEmptyBlobChecks += 1;
+      this.checkedObjectIds.push([...objectIds]);
+    }
+    return this.delegate.checkBlobEncryption(repositoryRoot, objectIds);
   }
 }
 
@@ -199,4 +296,25 @@ async function createDirectory(t: TestContext): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), 'git-crypt-explorer-'));
   t.after(async () => rm(root, { recursive: true, force: true }));
   return root;
+}
+
+async function stageBlob(root: string, relativePath: string, encrypted: boolean): Promise<void> {
+  if (encrypted) {
+    const header = Buffer.from([0x00, 0x47, 0x49, 0x54, 0x43, 0x52, 0x59, 0x50, 0x54, 0x00]);
+    await writeFile(
+      path.join(root, relativePath),
+      Buffer.concat([header, Buffer.from('test-only encrypted payload')]),
+    );
+  }
+  const { stdout } = await execFileAsync(
+    'git',
+    ['hash-object', '-w', '--no-filters', '--', relativePath],
+    { cwd: root },
+  );
+  const objectId = stdout.trim();
+  await execFileAsync(
+    'git',
+    ['update-index', '--add', '--cacheinfo', `100644,${objectId},${relativePath}`],
+    { cwd: root },
+  );
 }

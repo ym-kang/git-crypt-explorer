@@ -47,8 +47,12 @@ export function registerShowStatusCommand(
       (total, repository) => total + repository.warnings,
       0,
     );
+    const encryptedIndexFiles = status.repositories.reduce(
+      (total, repository) => total + repository.encryptedIndexFiles,
+      0,
+    );
     void vscode.window.showInformationMessage(
-      `Git repositories: ${status.repositories.length} · Protected files: ${protectedFiles} · Warnings: ${warnings}`,
+      `Git repositories: ${status.repositories.length} · Protected targets: ${protectedFiles} · Encrypted index blobs: ${encryptedIndexFiles} · Warnings: ${warnings}`,
     );
   });
 }
@@ -65,10 +69,15 @@ export function formatWorkspaceStatus(
     (total, repository) => total + repository.warnings,
     0,
   );
+  const encryptedIndexFiles = status.repositories.reduce(
+    (total, repository) => total + repository.encryptedIndexFiles,
+    0,
+  );
   const lines = [
     `Git repository: ${status.repositories.length > 0 ? 'yes' : 'no'}`,
     `git-crypt detected: ${status.repositories.some((repository) => repository.gitCryptDetected) ? 'yes' : 'no'}`,
     `Protected files: ${protectedFiles}`,
+    `Encrypted index blobs: ${encryptedIndexFiles}`,
     `Warnings: ${warnings}`,
   ];
 
@@ -86,6 +95,7 @@ export function formatWorkspaceStatus(
         repository.root,
         `  git-crypt detected: ${repository.gitCryptDetected ? 'yes' : 'no'}`,
         `  Protected files: ${repository.protectedFiles}`,
+        `  Encrypted index blobs: ${repository.encryptedIndexFiles}`,
         `  Warnings: ${repository.warnings}`,
       );
     }
