@@ -1,5 +1,12 @@
 # Change Log
 
+## 0.4.1
+
+- Added a dedicated Git Crypt Explorer Activity Bar view.
+- Added repository summaries and expandable encrypted-file and warning groups.
+- Added Activity Bar warning badges and view-title actions for refresh, status, and key management.
+- Improved Marketplace metadata and added Marketplace and Activity Bar icons.
+
 ## 0.4.0
 
 - Added batched Git index blob inspection using `git ls-files --stage -z` and

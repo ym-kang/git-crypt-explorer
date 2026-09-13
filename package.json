@@ -2,7 +2,7 @@
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer",
   "description": "Highlights git-crypt protected files and provides status, lock, unlock, key export, and GPG access commands.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "YoungmukKang",
   "author": {
     "name": "YoungmukKang",
@@ -66,12 +66,14 @@
       {
         "command": "gitCryptDecorations.refresh",
         "title": "Refresh Decorations",
-        "category": "Git Crypt"
+        "category": "Git Crypt",
+        "icon": "$(refresh)"
       },
       {
         "command": "gitCryptDecorations.showStatus",
         "title": "Show Status",
-        "category": "Git Crypt"
+        "category": "Git Crypt",
+        "icon": "$(output)"
       },
       {
         "command": "gitCryptDecorations.initializeWithKey",
@@ -104,6 +106,69 @@
         "category": "Git Crypt"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitCryptExplorer",
+          "title": "Git Crypt Explorer",
+          "icon": "images/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "gitCryptExplorer": [
+        {
+          "id": "gitCryptExplorer.repositories",
+          "name": "Repositories",
+          "icon": "$(lock)",
+          "contextualTitle": "Git Crypt Explorer"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitCryptDecorations.refresh",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitCryptDecorations.showStatus",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitCryptDecorations.initializeWithKey",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "1_repository@1"
+        },
+        {
+          "command": "gitCryptDecorations.initializeRepository",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "1_repository@2"
+        },
+        {
+          "command": "gitCryptDecorations.unlockWithGpg",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "1_repository@3"
+        },
+        {
+          "command": "gitCryptDecorations.lockRepository",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "1_repository@4"
+        },
+        {
+          "command": "gitCryptDecorations.exportKey",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "2_keys@1"
+        },
+        {
+          "command": "gitCryptDecorations.addGpgUser",
+          "when": "view == gitCryptExplorer.repositories",
+          "group": "2_keys@2"
+        }
+      ]
+    },
     "configuration": {
       "title": "Git Crypt Explorer",
       "properties": {

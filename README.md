@@ -1,6 +1,6 @@
-# Git Crypt Explorer Decorations
+# Git Crypt Explorer
 
-Git Crypt Explorer Decorations makes files protected by
+Git Crypt Explorer makes files protected by
 [git-crypt](https://github.com/AGWA/git-crypt) visible directly in the VS Code Explorer. Passive
 decoration and status scanning is read-only. Explicit commands can initialize/unlock a repository
 with an existing symmetric key and export the currently installed key.
@@ -11,6 +11,7 @@ with an existing symmetric key and export the currently installed key.
   the git-crypt header.
 - Shows a `!` warning when a target is untracked, conflicted, non-regular in the index, or has a
   plaintext index blob.
+- Adds a dedicated Activity Bar view with repository summaries, protected files, and warnings.
 - Propagates the decoration to parent folders so protected content is easier to find.
 - Supports multiple workspace folders and deduplicates folders belonging to the same repository.
 - Refreshes after `.gitattributes`, file-list, branch, checkout, or index changes.
@@ -48,6 +49,14 @@ public.env -filter -diff
 
 No extension-specific configuration file is required. The effective attribute is resolved by
 Git, including nested `.gitattributes` files and override rules.
+
+## Activity Bar
+
+Open **Git Crypt Explorer** from the Activity Bar to inspect every repository in the workspace.
+Each repository groups files whose Git index blobs are encrypted and files that need attention.
+Select a file to open it, use the title buttons to refresh or show the detailed status report, and
+use the **...** menu for initialization, lock/unlock, key export, and GPG commands. The Activity Bar
+badge shows the total warning count.
 
 ## Explorer decorations
 

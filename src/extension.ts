@@ -10,6 +10,10 @@ import { registerUnlockWithGpgCommand } from './commands/unlockWithGpg';
 import { GitCryptDecorationProvider } from './decorations/gitCryptDecorationProvider';
 import { GitCryptCli } from './gitCrypt/gitCryptCli';
 import { GitCryptService } from './gitCrypt/gitCryptService';
+import {
+  GitCryptExplorerTreeProvider,
+  updateGitCryptExplorerView,
+} from './views/gitCryptExplorerTree';
 import { WorkspaceController } from './workspaceController';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -18,11 +22,23 @@ export function activate(context: vscode.ExtensionContext): void {
   const cli = new GitCryptCli();
   const decorations = new GitCryptDecorationProvider(service);
   const controller = new WorkspaceController(service, decorations, output);
+  const treeProvider = new GitCryptExplorerTreeProvider(service);
+  const treeView = vscode.window.createTreeView('gitCryptExplorer.repositories', {
+    treeDataProvider: treeProvider,
+    showCollapseAll: true,
+  });
+  const refreshTreeView = (): void => {
+    treeProvider.refresh();
+    updateGitCryptExplorerView(treeView, service);
+  };
 
   context.subscriptions.push(
     output,
     decorations,
     controller,
+    treeProvider,
+    treeView,
+    controller.onDidRefresh(refreshTreeView),
     vscode.window.registerFileDecorationProvider(decorations),
     registerRefreshCommand(() => controller.refreshNow()),
     registerShowStatusCommand(() => service.getWorkspaceStatus(), cli, output),
@@ -34,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerAddGpgUserCommand(service, cli),
   );
 
+  refreshTreeView();
   void controller.initialize();
 }
 

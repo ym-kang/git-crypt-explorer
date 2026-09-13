@@ -6,10 +6,13 @@ const REFRESH_DEBOUNCE_MS = 300;
 
 export class WorkspaceController implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly refreshEmitter = new vscode.EventEmitter<void>();
   private gitWatchers: vscode.FileSystemWatcher[] = [];
   private debounceTimer: NodeJS.Timeout | undefined;
   private operation: Promise<void> = Promise.resolve();
   private reinitializeOnNextRefresh = false;
+
+  public readonly onDidRefresh = this.refreshEmitter.event;
 
   public constructor(
     private readonly service: GitCryptService,
@@ -18,6 +21,7 @@ export class WorkspaceController implements vscode.Disposable {
   ) {
     const attributes = vscode.workspace.createFileSystemWatcher('**/.gitattributes');
     this.disposables.push(
+      this.refreshEmitter,
       attributes,
       attributes.onDidCreate(() => this.scheduleRefresh()),
       attributes.onDidChange(() => this.scheduleRefresh()),
@@ -83,10 +87,12 @@ export class WorkspaceController implements vscode.Disposable {
           } else {
             await this.service.refreshAll();
           }
-          this.decorations.refresh();
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown refresh error.';
           this.output.appendLine(`[refresh] ${message}`);
+        } finally {
+          this.decorations.refresh();
+          this.refreshEmitter.fire();
         }
       });
     this.operation = next;

@@ -15,6 +15,7 @@ GitCryptService (one immutable-style snapshot per repository)
 GitClient: file list + index entries -> batched attributes + batched blob-header inspection
 
 Explorer render -> FileDecorationProvider -> synchronous snapshot Map lookup
+Activity Bar render -> TreeDataProvider -> repository snapshots and protected-file groups
 
 Explicit repository/key command -> modal confirmation -> GitCryptCli -> git-crypt child process
 ```
@@ -29,8 +30,10 @@ Explicit repository/key command -> modal confirmation -> GitCryptCli -> git-cryp
   requested `init`, lock/unlock, GPG-user, and `export-key` process execution. It never loads key
   bytes itself and does not invoke a shell.
 - `src/decorations/gitCryptDecorationProvider.ts` maps statuses to VS Code UI metadata.
+- `src/views/gitCryptExplorerTree.ts` renders repository snapshots in the Activity Bar without
+  starting additional Git processes.
 - `src/workspaceController.ts` owns watchers, 300 ms debounce, serialized refreshes, and Git-dir
-  watcher lifecycle.
+  watcher lifecycle, then signals both UI providers after a refresh.
 - `src/commands` contains user-facing command adapters.
 - `src/extension.ts` is composition and registration only.
 
