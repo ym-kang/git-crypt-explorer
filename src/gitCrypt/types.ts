@@ -1,5 +1,14 @@
 export type GitCryptStatus = 'encrypted' | 'warning' | 'none';
 
+export type GitCryptLocalState = 'unlocked' | 'locked' | 'not-initialized';
+
+export interface GitCryptRepositoryStatus {
+  readonly available: boolean;
+  readonly version?: string;
+  readonly localState: GitCryptLocalState;
+  readonly installedKeyCount: number;
+}
+
 export interface RepositorySnapshot {
   readonly root: string;
   readonly gitDir: string;

@@ -83,6 +83,10 @@ export class GitCryptService {
     };
   }
 
+  public getRepositorySnapshotForPath(filePath: string): RepositorySnapshot | undefined {
+    return this.repositoryPathForWorkspacePath(filePath)?.repository.snapshot;
+  }
+
   public getRepositoryLocations(): readonly GitRepositoryLocation[] {
     return [...this.repositories.values()].map((repository) => repository.location);
   }

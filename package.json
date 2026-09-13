@@ -2,7 +2,7 @@
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer Decorations",
   "description": "Shows git-crypt protected files in the VS Code Explorer.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "local-dev",
   "license": "MIT",
   "engines": {
@@ -46,6 +46,36 @@
       {
         "command": "gitCryptDecorations.showStatus",
         "title": "Show Status",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.initializeWithKey",
+        "title": "Initialize/Unlock with Existing Key",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.exportKey",
+        "title": "Export Key",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.initializeRepository",
+        "title": "Initialize New Repository",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.unlockWithGpg",
+        "title": "Unlock with GPG",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.lockRepository",
+        "title": "Lock Repository",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.addGpgUser",
+        "title": "Add GPG User (No Auto-Commit)",
         "category": "Git Crypt"
       }
     ],

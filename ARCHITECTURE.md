@@ -15,6 +15,8 @@ GitCryptService (one immutable-style snapshot per repository)
 GitClient: git ls-files -z -> git check-attr -z --stdin filter
 
 Explorer render -> FileDecorationProvider -> synchronous snapshot Map lookup
+
+Explicit repository/key command -> modal confirmation -> GitCryptCli -> git-crypt child process
 ```
 
 ## Boundaries
@@ -22,6 +24,9 @@ Explorer render -> FileDecorationProvider -> synchronous snapshot Map lookup
 - `src/git/gitClient.ts` owns child processes and NUL-delimited Git protocol parsing.
 - `src/gitCrypt/gitCryptService.ts` owns repository discovery, multi-root path mapping, status
   classification, and atomic cache replacement.
+- `src/gitCrypt/gitCryptCli.ts` owns installation/local-key-state inspection plus explicitly
+  requested `init`, lock/unlock, GPG-user, and `export-key` process execution. It never loads key
+  bytes itself and does not invoke a shell.
 - `src/decorations/gitCryptDecorationProvider.ts` maps statuses to VS Code UI metadata.
 - `src/workspaceController.ts` owns watchers, 300 ms debounce, serialized refreshes, and Git-dir
   watcher lifecycle.
@@ -43,4 +48,5 @@ known-good map and records the error for the status command.
 
 `GitCryptStatus` already includes `warning`. Future warning analysis should run as a separate
 post-processing stage after Git attribute resolution, then merge results into the new snapshot.
-It must not inspect secret contents or perform encryption/decryption.
+It must not inspect secret contents. Encryption/decryption remains restricted to explicit
+git-crypt CLI operations confirmed by the user.
