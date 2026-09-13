@@ -1,19 +1,44 @@
 {
   "name": "git-crypt-explorer",
-  "displayName": "Git Crypt Explorer Decorations",
-  "description": "Shows git-crypt protected files in the VS Code Explorer.",
-  "version": "0.4.0",
+  "displayName": "Git Crypt Explorer",
+  "description": "Highlights git-crypt protected files and provides status, lock, unlock, key export, and GPG access commands.",
+  "version": "0.4.1",
   "publisher": "YoungmukKang",
+  "author": {
+    "name": "YoungmukKang",
+    "url": "https://github.com/ym-kang"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ym-kang/git-crypt-explorer.git"
+  },
+  "homepage": "https://github.com/ym-kang/git-crypt-explorer#readme",
+  "bugs": {
+    "url": "https://github.com/ym-kang/git-crypt-explorer/issues"
+  },
   "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#071A3D",
+    "theme": "dark"
+  },
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
+    "SCM Providers",
     "Other"
   ],
   "keywords": [
     "git-crypt",
     "git",
+    "encryption",
+    "encrypted files",
+    "secrets",
+    "secret management",
+    "gitattributes",
+    "gpg",
     "explorer",
     "decorations",
     "security"
@@ -80,7 +105,7 @@
       }
     ],
     "configuration": {
-      "title": "Git Crypt Decorations",
+      "title": "Git Crypt Explorer",
       "properties": {
         "gitCryptDecorations.enabled": {
           "type": "boolean",
