@@ -1,0 +1,120 @@
+import * as vscode from 'vscode';
+import { GitCryptDecorationProvider } from './decorations/gitCryptDecorationProvider';
+import { GitCryptService } from './gitCrypt/gitCryptService';
+
+const REFRESH_DEBOUNCE_MS = 300;
+
+export class WorkspaceController implements vscode.Disposable {
+  private readonly disposables: vscode.Disposable[] = [];
+  private gitWatchers: vscode.FileSystemWatcher[] = [];
+  private debounceTimer: NodeJS.Timeout | undefined;
+  private operation: Promise<void> = Promise.resolve();
+  private reinitializeOnNextRefresh = false;
+
+  public constructor(
+    private readonly service: GitCryptService,
+    private readonly decorations: GitCryptDecorationProvider,
+    private readonly output: vscode.OutputChannel,
+  ) {
+    const attributes = vscode.workspace.createFileSystemWatcher('**/.gitattributes');
+    this.disposables.push(
+      attributes,
+      attributes.onDidCreate(() => this.scheduleRefresh()),
+      attributes.onDidChange(() => this.scheduleRefresh()),
+      attributes.onDidDelete(() => this.scheduleRefresh()),
+    );
+
+    const files = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
+    this.disposables.push(
+      files,
+      files.onDidCreate(() => this.scheduleRefresh()),
+      files.onDidDelete(() => this.scheduleRefresh()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh(true)),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('gitCryptDecorations.enabled')) {
+          this.decorations.refresh();
+        }
+      }),
+    );
+  }
+
+  public async initialize(): Promise<void> {
+    await this.enqueue(true);
+  }
+
+  public async refreshNow(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = undefined;
+    }
+    await this.enqueue(true);
+  }
+
+  public dispose(): void {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    for (const disposable of [...this.gitWatchers, ...this.disposables]) {
+      disposable.dispose();
+    }
+  }
+
+  private scheduleRefresh(reinitialize = false): void {
+    this.reinitializeOnNextRefresh ||= reinitialize;
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = undefined;
+      const shouldReinitialize = this.reinitializeOnNextRefresh;
+      this.reinitializeOnNextRefresh = false;
+      void this.enqueue(shouldReinitialize);
+    }, REFRESH_DEBOUNCE_MS);
+  }
+
+  private enqueue(reinitialize: boolean): Promise<void> {
+    const next = this.operation
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          if (reinitialize) {
+            await this.service.initialize(workspaceFolderPaths());
+            this.rebuildGitWatchers();
+          } else {
+            await this.service.refreshAll();
+          }
+          this.decorations.refresh();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown refresh error.';
+          this.output.appendLine(`[refresh] ${message}`);
+        }
+      });
+    this.operation = next;
+    return next;
+  }
+
+  private rebuildGitWatchers(): void {
+    for (const watcher of this.gitWatchers) {
+      watcher.dispose();
+    }
+    this.gitWatchers = [];
+
+    for (const repository of this.service.getRepositoryLocations()) {
+      for (const pattern of ['HEAD', 'index', 'packed-refs', 'refs/**']) {
+        const watcher = vscode.workspace.createFileSystemWatcher(
+          new vscode.RelativePattern(vscode.Uri.file(repository.gitDir), pattern),
+        );
+        watcher.onDidCreate(() => this.scheduleRefresh());
+        watcher.onDidChange(() => this.scheduleRefresh());
+        watcher.onDidDelete(() => this.scheduleRefresh());
+        this.gitWatchers.push(watcher);
+      }
+    }
+  }
+}
+
+function workspaceFolderPaths(): string[] {
+  return (vscode.workspace.workspaceFolders ?? [])
+    .filter((folder) => folder.uri.scheme === 'file')
+    .map((folder) => folder.uri.fsPath);
+}

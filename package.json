@@ -1,0 +1,77 @@
+{
+  "name": "git-crypt-explorer",
+  "displayName": "Git Crypt Explorer Decorations",
+  "description": "Shows git-crypt protected files in the VS Code Explorer.",
+  "version": "0.1.0",
+  "publisher": "local-dev",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "git-crypt",
+    "git",
+    "explorer",
+    "decorations",
+    "security"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "The extension executes read-only Git CLI commands in the workspace."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Git CLI attribute checks require local filesystem paths."
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/.gitattributes"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitCryptDecorations.refresh",
+        "title": "Refresh Decorations",
+        "category": "Git Crypt"
+      },
+      {
+        "command": "gitCryptDecorations.showStatus",
+        "title": "Show Status",
+        "category": "Git Crypt"
+      }
+    ],
+    "configuration": {
+      "title": "Git Crypt Decorations",
+      "properties": {
+        "gitCryptDecorations.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show decorations for files protected by git-crypt."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "check": "tsc -p ./ --noEmit",
+    "test": "npm run compile && node --test out/test/**/*.test.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.9.0"
+  }
+}
