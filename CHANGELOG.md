@@ -1,5 +1,11 @@
 # Change Log
 
+## 0.4.5
+
+- Added the IntelliJ Platform plugin for PyCharm and other compatible JetBrains IDEs.
+- Added the Git Crypt Explorer tool window, project-view decorations, repository status, and key-management actions.
+- Added a versioned `0.4.5` plugin distribution for Marketplace or local installation.
+
 ## 0.4.4
 
 - Added Explorer context-menu commands to add or remove files and folders from git-crypt targets.
