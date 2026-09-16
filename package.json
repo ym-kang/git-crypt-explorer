@@ -2,7 +2,7 @@
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer",
   "description": "Highlights git-crypt protected files and provides target management, status, lock, unlock, key export, and GPG access commands.",
-  "version": "0.4.5",
+  "version": "0.4.7",
   "publisher": "YoungmukKang",
   "author": {
     "name": "YoungmukKang",
@@ -74,6 +74,24 @@
         "title": "Show Status",
         "category": "Git Crypt",
         "icon": "$(output)"
+      },
+      {
+        "command": "gitCryptDecorations.toggleExplorerView",
+        "title": "Switch List/Tree View",
+        "category": "Git Crypt",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "gitCryptDecorations.expandExplorerTree",
+        "title": "Expand All",
+        "category": "Git Crypt",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "gitCryptDecorations.collapseExplorerTree",
+        "title": "Collapse All",
+        "category": "Git Crypt",
+        "icon": "$(collapse-all)"
       },
       {
         "command": "gitCryptDecorations.initializeWithKey",
@@ -158,6 +176,26 @@
           "command": "gitCryptDecorations.showStatus",
           "when": "view == gitCryptExplorer.repositories",
           "group": "navigation@2"
+        },
+        {
+          "command": "gitCryptDecorations.toggleExplorerView",
+          "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode != tree",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitCryptDecorations.toggleExplorerView",
+          "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode == tree",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitCryptDecorations.expandExplorerTree",
+          "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode == tree",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitCryptDecorations.collapseExplorerTree",
+          "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode == tree",
+          "group": "navigation@5"
         },
         {
           "command": "gitCryptDecorations.initializeWithKey",

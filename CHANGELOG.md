@@ -1,5 +1,17 @@
 # Change Log
 
+## 0.4.7
+
+- Renamed Grouped View to List View, removed the redundant encrypted-file group, and kept warnings in a separate group.
+- Tree View now opens fully expanded and provides Expand All and Collapse All controls in both VS Code and PyCharm.
+- Standardized the VS Code and PyCharm repository summaries to use the `encrypted` label.
+- Fixed VS Code Expand All behavior and removed the duplicate Collapse All action.
+- Replaced PyCharm explorer toolbar text buttons with compact icons and tooltips.
+- Set PyCharm toolbar icon buttons to a compact, consistent width.
+- Hardened VS Code startup and shutdown when the explorer panel is restored during project loading, including deferred Tree View expansion.
+- Added a persistent `Git Crypt Decorations` log channel with activation, initialization, tree, and refresh-stage diagnostics.
+- Released the IntelliJ Platform plugin for PyCharm and compatible JetBrains IDEs as version 0.4.7.
+
 ## 0.4.6
 
 - Added project-wide encrypted-file counts to each open PyCharm project tab/window title, including independent counts when multiple projects are open.

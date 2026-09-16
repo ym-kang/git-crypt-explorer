@@ -59,10 +59,20 @@ Git, including nested `.gitattributes` files and override rules.
 ## Activity Bar
 
 Open **Git Crypt Explorer** from the Activity Bar to inspect every repository in the workspace.
-Each repository groups files whose Git index blobs are encrypted and files that need attention.
+
+Use the view action in the panel header to switch between **List View** (repository → file list)
+and **Tree View** (repository → folder hierarchy → file). The selected view is remembered per VS
+Code workspace. List View shows encrypted files directly under each repository and keeps warnings
+in a separate group. Tree View opens with all repositories and folders expanded; use the **Expand
+All** and **Collapse All** header actions to change the expansion state.
+Each repository shows files whose Git index blobs are encrypted and files that need attention.
 Select a file to open it, use the title buttons to refresh or show the detailed status report, and
 use the **...** menu for initialization, lock/unlock, key export, and GPG commands. The Activity Bar
 badge shows the total warning count.
+
+Startup and refresh diagnostics are written to the `Git Crypt Decorations` log channel. If the
+panel causes a problem while a project is opening, check that channel in **View → Output**, or use
+`Developer: Open Logs Folder` and inspect the current Extension Host log.
 
 ## Explorer decorations
 

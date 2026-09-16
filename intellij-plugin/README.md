@@ -31,3 +31,9 @@ exists below the folder.
 
 Each open project window appends the project-wide count to its window/tab title, such as `🔒 × 3`.
 The count is shown independently for every project tab when multiple projects are open together.
+
+The Git Crypt Explorer tool window can switch between `List View` (repository → file list) and
+`Tree View` (repository → folder hierarchy → file) using the panel toolbar button. List View shows
+encrypted files directly under each repository and keeps warnings in a separate group. Its
+sidebar icon uses the same lock SVG as the VS Code Activity Bar icon. Tree View opens with all
+repositories and folders expanded and provides `Expand All` and `Collapse All` toolbar buttons.

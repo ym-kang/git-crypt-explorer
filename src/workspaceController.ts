@@ -11,13 +11,14 @@ export class WorkspaceController implements vscode.Disposable {
   private debounceTimer: NodeJS.Timeout | undefined;
   private operation: Promise<void> = Promise.resolve();
   private reinitializeOnNextRefresh = false;
+  private disposed = false;
 
   public readonly onDidRefresh = this.refreshEmitter.event;
 
   public constructor(
     private readonly service: GitCryptService,
     private readonly decorations: GitCryptDecorationProvider,
-    private readonly output: vscode.OutputChannel,
+    private readonly output: vscode.LogOutputChannel,
   ) {
     const attributes = vscode.workspace.createFileSystemWatcher('**/.gitattributes');
     this.disposables.push(
@@ -43,18 +44,23 @@ export class WorkspaceController implements vscode.Disposable {
   }
 
   public async initialize(): Promise<void> {
+    this.output.info('WorkspaceController.initialize() started.');
     await this.enqueue(true);
+    this.output.info('WorkspaceController.initialize() completed.');
   }
 
   public async refreshNow(): Promise<void> {
+    this.output.info('WorkspaceController.refreshNow() started.');
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = undefined;
     }
     await this.enqueue(true);
+    this.output.info('WorkspaceController.refreshNow() completed.');
   }
 
   public dispose(): void {
+    this.disposed = true;
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -81,6 +87,7 @@ export class WorkspaceController implements vscode.Disposable {
       .catch(() => undefined)
       .then(async () => {
         try {
+          this.output.info(`Refresh operation started (reinitialize=${reinitialize}).`);
           if (reinitialize) {
             await this.service.initialize(workspaceFolderPaths());
             this.rebuildGitWatchers();
@@ -88,11 +95,15 @@ export class WorkspaceController implements vscode.Disposable {
             await this.service.refreshAll();
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown refresh error.';
-          this.output.appendLine(`[refresh] ${message}`);
+          this.output.error(`[refresh] ${formatError(error)}`);
         } finally {
+          if (this.disposed) {
+            this.output.info('Refresh operation ended after disposal.');
+            return;
+          }
           this.decorations.refresh();
           this.refreshEmitter.fire();
+          this.output.info('Refresh operation completed.');
         }
       });
     this.operation = next;
@@ -123,4 +134,11 @@ function workspaceFolderPaths(): string[] {
   return (vscode.workspace.workspaceFolders ?? [])
     .filter((folder) => folder.uri.scheme === 'file')
     .map((folder) => folder.uri.fsPath);
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+  return String(error);
 }

@@ -3,7 +3,9 @@ import * as vscode from 'vscode';
 import { GitCryptService } from '../gitCrypt/gitCryptService';
 import { GitCryptStatus, RepositorySnapshot } from '../gitCrypt/types';
 
-type TreeNode = RepositoryNode | FileGroupNode | FileNode | MessageNode;
+export type TreeNode = RepositoryNode | FileGroupNode | DirectoryNode | FileNode | MessageNode;
+
+export type ExplorerViewMode = 'grouped' | 'tree';
 
 interface RepositoryNode {
   readonly kind: 'repository';
@@ -14,7 +16,14 @@ interface RepositoryNode {
 interface FileGroupNode {
   readonly kind: 'file-group';
   readonly snapshot: RepositorySnapshot;
-  readonly status: Exclude<GitCryptStatus, 'none'>;
+  readonly status: 'warning';
+}
+
+interface DirectoryNode {
+  readonly kind: 'directory';
+  readonly snapshot: RepositorySnapshot;
+  readonly directoryPath: string;
+  readonly expanded: boolean;
 }
 
 interface FileNode {
@@ -22,6 +31,7 @@ interface FileNode {
   readonly snapshot: RepositorySnapshot;
   readonly filePath: string;
   readonly status: Exclude<GitCryptStatus, 'none'>;
+  readonly displayName?: string;
 }
 
 interface MessageNode {
@@ -35,16 +45,55 @@ export class GitCryptExplorerTreeProvider
   implements vscode.TreeDataProvider<TreeNode>, vscode.Disposable
 {
   private readonly changeEmitter = new vscode.EventEmitter<TreeNode | undefined | null | void>();
+  private childrenCache = new WeakMap<TreeNode, TreeNode[]>();
+  private parentCache = new WeakMap<TreeNode, TreeNode>();
+  private rootNodes: TreeNode[] | undefined;
+  private disposed = false;
 
   public readonly onDidChangeTreeData = this.changeEmitter.event;
 
-  public constructor(private readonly service: GitCryptService) {}
+  private viewMode: ExplorerViewMode;
+  // Keep the first render lightweight. The extension expands the tree after the
+  // initial repository scan has completed.
+  private treeExpanded = false;
+
+  public constructor(
+    private readonly service: GitCryptService,
+    initialViewMode: ExplorerViewMode = 'grouped',
+  ) {
+    this.viewMode = initialViewMode;
+  }
+
+  public get currentViewMode(): ExplorerViewMode {
+    return this.viewMode;
+  }
+
+  public toggleViewMode(expandTree = true): ExplorerViewMode {
+    this.viewMode = this.viewMode === 'grouped' ? 'tree' : 'grouped';
+    if (this.viewMode === 'tree' && expandTree) {
+      this.treeExpanded = true;
+    }
+    this.refresh();
+    return this.viewMode;
+  }
+
+  public setTreeExpanded(expanded: boolean): void {
+    this.treeExpanded = expanded;
+    this.refresh();
+  }
 
   public refresh(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.rootNodes = undefined;
+    this.childrenCache = new WeakMap<TreeNode, TreeNode[]>();
+    this.parentCache = new WeakMap<TreeNode, TreeNode>();
     this.changeEmitter.fire();
   }
 
   public dispose(): void {
+    this.disposed = true;
     this.changeEmitter.dispose();
   }
 
@@ -54,6 +103,8 @@ export class GitCryptExplorerTreeProvider
         return repositoryTreeItem(element);
       case 'file-group':
         return fileGroupTreeItem(element);
+      case 'directory':
+        return directoryTreeItem(element);
       case 'file':
         return fileTreeItem(element);
       case 'message':
@@ -66,18 +117,46 @@ export class GitCryptExplorerTreeProvider
       return this.getRootNodes();
     }
 
+    const cached = this.childrenCache.get(element);
+    if (cached) {
+      return cached;
+    }
+
+    let children: TreeNode[];
     switch (element.kind) {
       case 'repository':
-        return repositoryChildren(element.snapshot);
+        children = this.viewMode === 'tree'
+          ? treeRepositoryChildren(element.snapshot, this.treeExpanded)
+          : repositoryChildren(element.snapshot);
+        break;
       case 'file-group':
-        return fileGroupChildren(element);
+        children = fileGroupChildren(element);
+        break;
+      case 'directory':
+        children = treeDirectoryChildren(element.snapshot, element.directoryPath, this.treeExpanded);
+        break;
       case 'file':
       case 'message':
-        return [];
+        children = [];
+        break;
     }
+
+    this.childrenCache.set(element, children);
+    for (const child of children) {
+      this.parentCache.set(child, element);
+    }
+    return children;
+  }
+
+  public getParent(element: TreeNode): TreeNode | undefined {
+    return this.parentCache.get(element);
   }
 
   private getRootNodes(): TreeNode[] {
+    if (this.rootNodes) {
+      return this.rootNodes;
+    }
+
     const status = this.service.getWorkspaceStatus();
     const messages: MessageNode[] = status.discoveryErrors.map((error) => ({
       kind: 'message',
@@ -106,19 +185,23 @@ export class GitCryptExplorerTreeProvider
           icon: 'info',
         });
       }
+      this.rootNodes = messages;
       return messages;
     }
 
-    return [
+    this.rootNodes = [
       ...messages,
       ...status.repositories.map(
         (snapshot): RepositoryNode => ({
           kind: 'repository',
           snapshot,
-          expanded: status.repositories.length === 1,
+          expanded: this.viewMode === 'tree'
+            ? this.treeExpanded
+            : status.repositories.length === 1,
         }),
       ),
     ];
+    return this.rootNodes;
   }
 }
 
@@ -159,7 +242,7 @@ function repositoryTreeItem(node: RepositoryNode): vscode.TreeItem {
   );
   item.description = snapshot.error
     ? 'Scan failed'
-    : `${snapshot.protectedFiles} protected · ${snapshot.warnings} warnings`;
+    : `${snapshot.protectedFiles} encrypted · ${snapshot.warnings} warnings`;
   item.tooltip = [
     snapshot.root,
     `Protected files: ${snapshot.protectedFiles}`,
@@ -195,11 +278,7 @@ function repositoryChildren(snapshot: RepositorySnapshot): TreeNode[] {
   }
 
   if (snapshot.encryptedIndexFiles > 0) {
-    children.push({
-      kind: 'file-group',
-      snapshot,
-      status: 'encrypted',
-    });
+    children.push(...statusFileChildren(snapshot, 'encrypted'));
   }
   if (snapshot.warnings > 0) {
     children.push({
@@ -211,41 +290,145 @@ function repositoryChildren(snapshot: RepositorySnapshot): TreeNode[] {
   return children;
 }
 
-function fileGroupTreeItem(node: FileGroupNode): vscode.TreeItem {
-  const warning = node.status === 'warning';
-  const count = warning ? node.snapshot.warnings : node.snapshot.encryptedIndexFiles;
+function treeRepositoryChildren(snapshot: RepositorySnapshot, expanded: boolean): TreeNode[] {
+  const children: TreeNode[] = [];
+
+  if (snapshot.error) {
+    children.push({
+      kind: 'message',
+      label: 'Scan failed',
+      description: snapshot.error,
+      icon: 'error',
+    });
+  }
+
+  if (!snapshot.gitCryptDetected) {
+    children.push({
+      kind: 'message',
+      label: 'No git-crypt targets detected.',
+      icon: 'unlock',
+    });
+    return children;
+  }
+
+  return [...children, ...treeDirectoryChildren(snapshot, snapshot.root, expanded)];
+}
+
+function treeDirectoryChildren(
+  snapshot: RepositorySnapshot,
+  directoryPath: string,
+  expanded: boolean,
+): TreeNode[] {
+  const directories = new Map<string, DirectoryNode>();
+  const files: FileNode[] = [];
+
+  for (const [filePath, status] of [...snapshot.statuses.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    if (status === 'none') {
+      continue;
+    }
+    const relativePath = path.relative(directoryPath, filePath);
+    if (!relativePath || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+      continue;
+    }
+
+    const segments = relativePath.split(path.sep);
+    const firstSegment = segments[0];
+    if (!firstSegment) {
+      continue;
+    }
+    if (segments.length === 1) {
+      files.push({
+        kind: 'file',
+        snapshot,
+        filePath,
+        status,
+        displayName: path.basename(filePath),
+      });
+      continue;
+    }
+
+    const childPath = path.join(directoryPath, firstSegment);
+    directories.set(childPath, {
+      kind: 'directory',
+      snapshot,
+      directoryPath: childPath,
+      expanded,
+    });
+  }
+
+  return [
+    ...[...directories.values()].sort((left, right) =>
+      path.basename(left.directoryPath).localeCompare(path.basename(right.directoryPath)),
+    ),
+    ...files.sort((left, right) => left.filePath.localeCompare(right.filePath)),
+  ];
+}
+
+function directoryTreeItem(node: DirectoryNode): vscode.TreeItem {
+  const prefix = `${node.directoryPath}${path.sep}`;
+  const encryptedCount = [...node.snapshot.statuses.entries()].filter(
+    ([filePath, status]) => filePath.startsWith(prefix) && status === 'encrypted',
+  ).length;
+  const warningCount = [...node.snapshot.statuses.entries()].filter(
+    ([filePath, status]) => filePath.startsWith(prefix) && status === 'warning',
+  ).length;
   const item = new vscode.TreeItem(
-    warning ? 'Warnings' : 'Encrypted in Git index',
-    warning
+    path.basename(node.directoryPath),
+    node.expanded
       ? vscode.TreeItemCollapsibleState.Expanded
       : vscode.TreeItemCollapsibleState.Collapsed,
   );
-  item.description = String(count);
-  item.iconPath = new vscode.ThemeIcon(warning ? 'warning' : 'lock');
-  item.id = `group:${node.snapshot.root}:${node.status}`;
-  item.contextValue = warning ? 'gitCryptWarningGroup' : 'gitCryptEncryptedGroup';
+  item.description = warningCount > 0
+    ? `${warningCount} warning${warningCount === 1 ? '' : 's'}`
+    : `${encryptedCount} encrypted`;
+  item.tooltip = `${node.directoryPath}\nEncrypted: ${encryptedCount}\nWarnings: ${warningCount}`;
+  item.iconPath = new vscode.ThemeIcon(warningCount > 0 ? 'warning' : 'folder');
+  item.id = `directory:${node.directoryPath}`;
+  item.contextValue = warningCount > 0 ? 'gitCryptWarningDirectory' : 'gitCryptDirectory';
+  return item;
+}
+
+function fileGroupTreeItem(node: FileGroupNode): vscode.TreeItem {
+  const item = new vscode.TreeItem(
+    'Warnings',
+    vscode.TreeItemCollapsibleState.Expanded,
+  );
+  item.description = String(node.snapshot.warnings);
+  item.iconPath = new vscode.ThemeIcon('warning');
+  item.id = `group:${node.snapshot.root}:warning`;
+  item.contextValue = 'gitCryptWarningGroup';
   return item;
 }
 
 function fileGroupChildren(group: FileGroupNode): FileNode[] {
-  return [...group.snapshot.statuses.entries()]
-    .filter(([, status]) => status === group.status)
+  return statusFileChildren(group.snapshot, group.status);
+}
+
+function statusFileChildren(
+  snapshot: RepositorySnapshot,
+  status: Exclude<GitCryptStatus, 'none'>,
+): FileNode[] {
+  return [...snapshot.statuses.entries()]
+    .filter(([, fileStatus]) => fileStatus === status)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([filePath]) => ({
       kind: 'file',
-      snapshot: group.snapshot,
+      snapshot,
       filePath,
-      status: group.status,
+      status,
     }));
 }
 
 function fileTreeItem(node: FileNode): vscode.TreeItem {
   const relativePath = path.relative(node.snapshot.root, node.filePath) || node.filePath;
+  const displayPath = node.displayName ?? relativePath;
   const detail =
     node.status === 'warning'
       ? node.snapshot.statusDetails.get(node.filePath) ?? 'git-crypt protection warning'
       : 'Protected by git-crypt (encrypted in Git index)';
-  const item = new vscode.TreeItem(relativePath, vscode.TreeItemCollapsibleState.None);
+  const item = new vscode.TreeItem(displayPath, vscode.TreeItemCollapsibleState.None);
   item.description = node.status === 'warning' ? detail : undefined;
   item.tooltip = `${relativePath}\n${detail}`;
   item.iconPath = new vscode.ThemeIcon(node.status === 'warning' ? 'warning' : 'lock');

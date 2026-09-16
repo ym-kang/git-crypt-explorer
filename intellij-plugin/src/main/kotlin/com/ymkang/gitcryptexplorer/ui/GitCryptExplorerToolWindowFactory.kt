@@ -7,6 +7,8 @@ import com.intellij.ui.content.ContentFactory
 
 class GitCryptExplorerToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        toolWindow.setIcon(GitCryptIcons.Explorer)
+
         val content = ContentFactory.getInstance().createContent(
             GitCryptExplorerPanel(project),
             "",

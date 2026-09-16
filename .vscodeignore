@@ -3,6 +3,8 @@
 .github/**
 .vscode/**
 .codex/**
+.agents/**
+AGENTS.md
 .envrc
 src/**
 test/**
