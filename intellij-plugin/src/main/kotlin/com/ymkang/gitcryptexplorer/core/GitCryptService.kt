@@ -11,6 +11,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.wm.impl.TitleInfoProvider
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import java.nio.file.LinkOption
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
@@ -108,7 +109,7 @@ class GitCryptService(private val project: Project) : Disposable {
 
     fun pathDecorationForPath(filePath: Path): GitCryptPathDecoration {
         val normalized = filePath.toAbsolutePath().normalize()
-        val match = repositoryPathForWorkspacePath(normalized) ?: return GitCryptPathDecoration.NONE
+        val match = repositoryPathForDecorationPath(normalized) ?: return GitCryptPathDecoration.NONE
         val direct = match.first.snapshot.statuses[match.second]
         if (direct != null) return direct.toPathDecoration()
         if (!Files.isDirectory(match.second)) return GitCryptPathDecoration.NONE
@@ -127,7 +128,7 @@ class GitCryptService(private val project: Project) : Disposable {
 
     fun encryptedFileCountForPath(filePath: Path): Int {
         val normalized = filePath.toAbsolutePath().normalize()
-        val match = repositoryPathForWorkspacePath(normalized) ?: return 0
+        val match = repositoryPathForDecorationPath(normalized) ?: return 0
         val snapshot = match.first.snapshot
         val directStatus = snapshot.statuses[match.second]
         if (directStatus != null) return if (directStatus == GitCryptStatus.ENCRYPTED) 1 else 0
@@ -166,7 +167,7 @@ class GitCryptService(private val project: Project) : Disposable {
     }
 
     fun statusDetailForPath(filePath: Path): String? {
-        val match = repositoryPathForWorkspacePath(filePath) ?: return null
+        val match = repositoryPathForDecorationPath(filePath) ?: return null
         return match.first.snapshot.statusDetails[match.second]
     }
 
@@ -255,6 +256,23 @@ class GitCryptService(private val project: Project) : Disposable {
         return best?.let { it.first to it.second }
     }
 
+    private fun repositoryPathForDecorationPath(filePath: Path): Pair<MutableRepository, Path>? {
+        val originalMatch = repositoryPathForWorkspacePath(filePath) ?: return null
+        val originalPath = filePath.toAbsolutePath().normalize()
+        val resolvedPath = resolveSymlinkPath(originalPath)
+        if (resolvedPath == originalPath) return originalMatch
+
+        repositoryPathForWorkspacePath(resolvedPath)?.let { return it }
+
+        val targetRelativePath = originalPath.parent?.relativize(resolvedPath) ?: return originalMatch
+        val repositoryPath = originalMatch.second.parent.resolve(targetRelativePath).normalize()
+        return if (repositoryPath.startsWith(originalMatch.first.location.root)) {
+            originalMatch.first to repositoryPath
+        } else {
+            originalMatch
+        }
+    }
+
     private fun scheduleRefresh() {
         synchronized(this) {
             scheduledRefresh?.cancel(false)
@@ -294,6 +312,20 @@ class GitCryptService(private val project: Project) : Disposable {
 }
 
 private fun emptySnapshot(location: GitRepositoryLocation) = RepositorySnapshot(location.root, location.gitDir)
+
+private fun resolveSymlinkPath(filePath: Path): Path {
+    val originalPath = filePath.toAbsolutePath().normalize()
+    var currentPath = originalPath
+    val visited = mutableSetOf<Path>()
+
+    while (visited.add(currentPath)) {
+        if (!Files.exists(currentPath, LinkOption.NOFOLLOW_LINKS)) return originalPath
+        if (!Files.isSymbolicLink(currentPath)) return currentPath
+        currentPath = currentPath.parent.resolve(Files.readSymbolicLink(currentPath)).toAbsolutePath().normalize()
+    }
+
+    return originalPath
+}
 
 private fun GitCryptStatus.toPathDecoration() = when (this) {
     GitCryptStatus.ENCRYPTED -> GitCryptPathDecoration.ENCRYPTED

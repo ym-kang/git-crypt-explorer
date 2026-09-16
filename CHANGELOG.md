@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed PyCharm decorations and status details for symbolic links by following their targets.
+
 ## 0.4.8
 
 - Added a PyCharm Git Crypt actions menu to the explorer panel for status, initialization, lock/unlock, key export, and GPG user management.
