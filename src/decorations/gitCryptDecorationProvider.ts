@@ -16,14 +16,19 @@ export class GitCryptDecorationProvider implements vscode.FileDecorationProvider
       return undefined;
     }
 
-    const status = this.service.getStatus(uri.fsPath);
-    if (status === 'encrypted') {
+    const status = this.service.getPathDecoration(uri.fsPath);
+    if (status === 'encrypted' || status === 'partial') {
+      const encryptedCount = this.service.getEncryptedFileCount(uri.fsPath);
+      const badge = status === 'partial' ? partialBadge(encryptedCount) : '🔒';
+      const tooltip =
+        status === 'partial'
+          ? `Partially protected folder: ${encryptedCount} encrypted file${encryptedCount === 1 ? '' : 's'} below this folder`
+          : 'Protected by git-crypt (encrypted in Git index)';
       const decoration = new vscode.FileDecoration(
-        '🔒',
-        'Protected by git-crypt (encrypted in Git index)',
+        badge,
+        tooltip,
         new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
       );
-      decoration.propagate = true;
       return decoration;
     }
 
@@ -33,7 +38,6 @@ export class GitCryptDecorationProvider implements vscode.FileDecorationProvider
         this.service.getStatusDetail(uri.fsPath) ?? 'git-crypt protection warning',
         new vscode.ThemeColor('list.warningForeground'),
       );
-      decoration.propagate = true;
       return decoration;
     }
 
@@ -47,4 +51,8 @@ export class GitCryptDecorationProvider implements vscode.FileDecorationProvider
   public dispose(): void {
     this.changeEmitter.dispose();
   }
+}
+
+function partialBadge(encryptedCount: number): string {
+  return encryptedCount < 10 ? `🔒${encryptedCount}` : '🔒+';
 }

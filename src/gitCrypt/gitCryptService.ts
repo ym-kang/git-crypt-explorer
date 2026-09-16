@@ -6,7 +6,12 @@ import {
   GitIndexEntry,
   GitRepositoryLocation,
 } from '../git/gitClient';
-import { GitCryptStatus, RepositorySnapshot, WorkspaceStatus } from './types';
+import {
+  GitCryptPathDecoration,
+  GitCryptStatus,
+  RepositorySnapshot,
+  WorkspaceStatus,
+} from './types';
 
 interface MutableRepository {
   readonly location: GitRepositoryLocation;
@@ -80,6 +85,56 @@ export class GitCryptService {
       return 'none';
     }
     return match.repository.snapshot.statuses.get(match.repositoryPath) ?? 'none';
+  }
+
+  public getPathDecoration(filePath: string): GitCryptPathDecoration {
+    const match = this.repositoryPathForWorkspacePath(filePath);
+    if (!match) {
+      return 'none';
+    }
+
+    const snapshot = match.repository.snapshot;
+    const directStatus = snapshot.statuses.get(match.repositoryPath);
+    if (directStatus) {
+      return directStatus;
+    }
+
+    const descendantFiles = [...snapshot.scannedFiles].filter((scannedFile) =>
+      isWithin(match.repositoryPath, scannedFile),
+    );
+    if (descendantFiles.length === 0) {
+      return 'none';
+    }
+
+    const descendantStatuses = descendantFiles
+      .map((scannedFile) => snapshot.statuses.get(scannedFile))
+      .filter((status): status is GitCryptStatus => status !== undefined);
+    if (descendantStatuses.some((status) => status === 'warning')) {
+      return 'warning';
+    }
+
+    const encryptedCount = descendantStatuses.filter((status) => status === 'encrypted').length;
+    if (encryptedCount === descendantFiles.length) {
+      return 'encrypted';
+    }
+    return encryptedCount > 0 ? 'partial' : 'none';
+  }
+
+  public getEncryptedFileCount(filePath: string): number {
+    const match = this.repositoryPathForWorkspacePath(filePath);
+    if (!match) {
+      return 0;
+    }
+
+    const snapshot = match.repository.snapshot;
+    if (snapshot.statuses.get(match.repositoryPath) === 'encrypted') {
+      return 1;
+    }
+    return [...snapshot.scannedFiles].filter(
+      (scannedFile) =>
+        isWithin(match.repositoryPath, scannedFile) &&
+        snapshot.statuses.get(scannedFile) === 'encrypted',
+    ).length;
   }
 
   public getStatusDetail(filePath: string): string | undefined {
@@ -185,6 +240,9 @@ export class GitCryptService {
       repository.snapshot = {
         root: repository.location.root,
         gitDir: repository.location.gitDir,
+        scannedFiles: new Set(
+          files.map((file) => path.resolve(repository.location.root, file)),
+        ),
         statuses,
         statusDetails,
         protectedFiles: targets.length,
@@ -240,6 +298,7 @@ function emptySnapshot(location: GitRepositoryLocation): RepositorySnapshot {
   return {
     root: location.root,
     gitDir: location.gitDir,
+    scannedFiles: new Set(),
     statuses: new Map(),
     statusDetails: new Map(),
     protectedFiles: 0,

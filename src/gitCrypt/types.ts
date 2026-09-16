@@ -1,5 +1,7 @@
 export type GitCryptStatus = 'encrypted' | 'warning' | 'none';
 
+export type GitCryptPathDecoration = 'encrypted' | 'partial' | 'warning' | 'none';
+
 export type GitCryptLocalState = 'unlocked' | 'locked' | 'not-initialized';
 
 export interface GitCryptRepositoryStatus {
@@ -12,6 +14,7 @@ export interface GitCryptRepositoryStatus {
 export interface RepositorySnapshot {
   readonly root: string;
   readonly gitDir: string;
+  readonly scannedFiles: ReadonlySet<string>;
   readonly statuses: ReadonlyMap<string, GitCryptStatus>;
   readonly statusDetails: ReadonlyMap<string, string>;
   readonly protectedFiles: number;

@@ -39,6 +39,31 @@ test('classifies a git-crypt target with an encrypted index blob as encrypted', 
   assert.equal(service.getWorkspaceStatus().repositories[0]?.encryptedIndexFiles, 1);
 });
 
+test('uses the same all-or-partial folder decorations as the IDE plugin', async (t) => {
+  const allEncryptedRoot = await createRepository(t, {
+    '.gitattributes': 'secrets/*.secret filter=git-crypt\n',
+    'secrets/one.secret': 'fixture one\n',
+    'secrets/two.secret': 'fixture two\n',
+  });
+  await stageBlob(allEncryptedRoot, 'secrets/one.secret', true);
+  await stageBlob(allEncryptedRoot, 'secrets/two.secret', true);
+  const allEncryptedService = await initialize(allEncryptedRoot);
+
+  assert.equal(allEncryptedService.getPathDecoration(path.join(allEncryptedRoot, 'secrets')), 'encrypted');
+  assert.equal(allEncryptedService.getEncryptedFileCount(path.join(allEncryptedRoot, 'secrets')), 2);
+
+  const partialRoot = await createRepository(t, {
+    '.gitattributes': 'secrets/*.secret filter=git-crypt\n',
+    'secrets/one.secret': 'fixture one\n',
+    'secrets/public.txt': 'public fixture\n',
+  });
+  await stageBlob(partialRoot, 'secrets/one.secret', true);
+  const partialService = await initialize(partialRoot);
+
+  assert.equal(partialService.getPathDecoration(path.join(partialRoot, 'secrets')), 'partial');
+  assert.equal(partialService.getEncryptedFileCount(path.join(partialRoot, 'secrets')), 1);
+});
+
 test('warns when a git-crypt target is not present in the index', async (t) => {
   const root = await createRepository(t, {
     '.gitattributes': '*.secret filter=git-crypt\n',

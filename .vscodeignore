@@ -6,6 +6,7 @@
 .envrc
 src/**
 test/**
+intellij-plugin/**
 node_modules/**
 package-lock.json
 tsconfig.json

@@ -7,13 +7,14 @@ with an existing symmetric key and export the currently installed key.
 
 ## Features
 
-- Shows a `🔒` badge when a file is a `git-crypt` target and its staged Git index blob has
-  the git-crypt header.
+- Shows a `🔒` badge when a file or folder is fully protected by `git-crypt`, and a compact `🔒n`
+  badge on a folder containing `n` encrypted files alongside unprotected files (`🔒+` for 10 or
+  more).
 - Shows a `!` warning when a target is untracked, conflicted, non-regular in the index, or has a
   plaintext index blob.
 - Adds a dedicated Activity Bar view with repository summaries, protected files, and warnings.
 - Adds or removes file and folder encryption targets from the Explorer context menu.
-- Propagates the decoration to parent folders so protected content is easier to find.
+- Decorates folders directly so full and partial protection can be distinguished.
 - Supports multiple workspace folders and deduplicates folders belonging to the same repository.
 - Refreshes after `.gitattributes`, file-list, branch, checkout, or index changes.
 - Uses a repository-level cache, debounce, and batched Git calls.
@@ -37,6 +38,10 @@ From a packaged VSIX:
 3. Open a local git-crypt repository.
 
 For development, see [Development](#development).
+
+The repository also contains an IntelliJ Platform implementation in
+[`intellij-plugin/`](intellij-plugin/). It is designed as a shared JetBrains IDE plugin and
+supports PyCharm without requiring Python-specific APIs.
 
 ## Use in a git-crypt repository
 
@@ -64,13 +69,14 @@ badge shows the total warning count.
 | Decoration | Meaning | Tooltip |
 | --- | --- | --- |
 | `🔒` | `filter=git-crypt` and the stage-0 index blob has the git-crypt header | Protected by git-crypt (encrypted in Git index) |
+| `🔒n` / `🔒+` | Folder contains encrypted files and at least one unprotected file | Exact number of encrypted files below this folder |
 | `!` | git-crypt target, but its index entry is missing, conflicted, non-regular, or plaintext | The detected index problem |
 | none | File is not a git-crypt target | — |
 
 The check concerns the staged/index copy, which is what a commit would contain. In an unlocked
 repository the working-tree file can remain plaintext while still showing `🔒`, because its index
-blob is encrypted. VS Code's `FileDecoration` badge accepts a very short string, not a `ThemeIcon`,
-so a lock character is used instead of a Codicon.
+blob is encrypted. VS Code's `FileDecoration` badge is intended for very short strings, so the
+lock/count badge is kept compact rather than using a full custom icon.
 
 ## Screenshot
 
