@@ -28,3 +28,6 @@ initialization, GPG unlock/user management, lock, and `.gitattributes` target ed
 Project View decorations use `🔒` when every scanned file below a folder is encrypted, `🔒 × n`
 when the folder contains `n` encrypted files alongside unprotected files, and `!` when a warning
 exists below the folder.
+
+Each open project window appends the project-wide count to its window/tab title, such as `🔒 × 3`.
+The count is shown independently for every project tab when multiple projects are open together.

@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.4.6
+
+- Added project-wide encrypted-file counts to each open PyCharm project tab/window title, including independent counts when multiple projects are open.
+- Added git-crypt status suffixes to open editor tabs and refreshes them after repository status changes.
+
 ## 0.4.5
 
 - Added the IntelliJ Platform plugin for PyCharm and other compatible JetBrains IDEs.
