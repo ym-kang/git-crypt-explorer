@@ -25,34 +25,25 @@
     </extensions>
 
     <actions>
-        <action
-                id="com.ymkang.gitcryptexplorer.Refresh"
-                class="com.ymkang.gitcryptexplorer.actions.RefreshGitCryptAction"
-                text="Refresh Git Crypt"
-                description="Refresh Git Crypt Explorer">
+        <group
+                id="com.ymkang.gitcryptexplorer.ToolsGroup"
+                text="Git Crypt Explorer"
+                description="Git Crypt Explorer commands"
+                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.ShowStatus" class="com.ymkang.gitcryptexplorer.actions.ShowStatusAction" text="Show Status" description="Show Git Crypt status">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.InitializeWithKey" class="com.ymkang.gitcryptexplorer.actions.InitializeWithKeyAction" text="Initialize/Unlock with Existing Key" description="Unlock a repository with an existing git-crypt key">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.InitializeRepository" class="com.ymkang.gitcryptexplorer.actions.InitializeRepositoryAction" text="Initialize New Repository" description="Initialize a new git-crypt repository">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.UnlockWithGpg" class="com.ymkang.gitcryptexplorer.actions.UnlockWithGpgAction" text="Unlock with GPG" description="Unlock a repository with GPG">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.LockRepository" class="com.ymkang.gitcryptexplorer.actions.LockRepositoryAction" text="Lock Repository" description="Lock a git-crypt repository">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.ExportKey" class="com.ymkang.gitcryptexplorer.actions.ExportKeyAction" text="Export Key" description="Export the git-crypt symmetric key">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
-        <action id="com.ymkang.gitcryptexplorer.AddGpgUser" class="com.ymkang.gitcryptexplorer.actions.AddGpgUserAction" text="Add GPG User (No Auto-Commit)" description="Grant a GPG identity access to the repository key">
-            <add-to-group group-id="ToolsMenu" anchor="last" />
-        </action>
+            <action
+                    id="com.ymkang.gitcryptexplorer.Refresh"
+                    class="com.ymkang.gitcryptexplorer.actions.RefreshGitCryptAction"
+                    text="Refresh Git Crypt"
+                    description="Refresh Git Crypt Explorer" />
+            <action id="com.ymkang.gitcryptexplorer.ShowStatus" class="com.ymkang.gitcryptexplorer.actions.ShowStatusAction" text="Show Status" description="Show Git Crypt status" />
+            <action id="com.ymkang.gitcryptexplorer.InitializeWithKey" class="com.ymkang.gitcryptexplorer.actions.InitializeWithKeyAction" text="Initialize/Unlock with Existing Key" description="Unlock a repository with an existing git-crypt key" />
+            <action id="com.ymkang.gitcryptexplorer.InitializeRepository" class="com.ymkang.gitcryptexplorer.actions.InitializeRepositoryAction" text="Initialize New Repository" description="Initialize a new git-crypt repository" />
+            <action id="com.ymkang.gitcryptexplorer.UnlockWithGpg" class="com.ymkang.gitcryptexplorer.actions.UnlockWithGpgAction" text="Unlock with GPG" description="Unlock a repository with GPG" />
+            <action id="com.ymkang.gitcryptexplorer.LockRepository" class="com.ymkang.gitcryptexplorer.actions.LockRepositoryAction" text="Lock Repository" description="Lock a git-crypt repository" />
+            <action id="com.ymkang.gitcryptexplorer.ExportKey" class="com.ymkang.gitcryptexplorer.actions.ExportKeyAction" text="Export Key" description="Export the git-crypt symmetric key" />
+            <action id="com.ymkang.gitcryptexplorer.AddGpgUser" class="com.ymkang.gitcryptexplorer.actions.AddGpgUserAction" text="Add GPG User (No Auto-Commit)" description="Grant a GPG identity access to the repository key" />
+        </group>
         <action id="com.ymkang.gitcryptexplorer.ProtectFile" class="com.ymkang.gitcryptexplorer.actions.ProtectFileAction" text="Add to Encryption Targets" description="Add the selected file or directory to git-crypt targets">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last" />
             <add-to-group group-id="EditorPopupMenu" anchor="last" />

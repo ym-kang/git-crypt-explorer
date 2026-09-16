@@ -15,6 +15,10 @@ needs Python PSI or Python inspections.
 - IntelliJ IDEA for plugin development
 - Git, `git-crypt`, and GPG for repository operations
 
+The plugin automatically resolves `git-crypt` from the process PATH and standard Homebrew/system
+locations, including `/opt/homebrew/bin/git-crypt`, so GUI-launched JetBrains IDEs do not need to
+be started from a terminal.
+
 ## Development
 
 Open this directory as a Gradle project in IntelliJ IDEA. Run the `runIde` Gradle task to
@@ -37,3 +41,6 @@ The Git Crypt Explorer tool window can switch between `List View` (repository â†
 encrypted files directly under each repository and keeps warnings in a separate group. Its
 sidebar icon uses the same lock SVG as the VS Code Activity Bar icon. Tree View opens with all
 repositories and folders expanded and provides `Expand All` and `Collapse All` toolbar buttons.
+The panel's actions menu also contains status, initialization, lock/unlock, key export, and GPG
+user-management commands.
+The same commands are grouped under `Tools â†’ Git Crypt Explorer`.

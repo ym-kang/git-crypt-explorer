@@ -1,9 +1,14 @@
 package com.ymkang.gitcryptexplorer.ui
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
@@ -27,6 +32,15 @@ import javax.swing.tree.DefaultTreeModel
 class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExplorerPanel>(BorderLayout()) {
     private companion object {
         const val TREE_VIEW_KEY = "gitCryptExplorer.treeView"
+        val MANAGEMENT_ACTION_IDS = listOf(
+            "com.ymkang.gitcryptexplorer.ShowStatus",
+            "com.ymkang.gitcryptexplorer.InitializeWithKey",
+            "com.ymkang.gitcryptexplorer.InitializeRepository",
+            "com.ymkang.gitcryptexplorer.UnlockWithGpg",
+            "com.ymkang.gitcryptexplorer.LockRepository",
+            "com.ymkang.gitcryptexplorer.ExportKey",
+            "com.ymkang.gitcryptexplorer.AddGpgUser",
+        )
     }
 
     private val service = project.getService(GitCryptService::class.java)
@@ -77,10 +91,16 @@ class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExpl
         configureIconButton(refreshButton)
         refreshButton.toolTipText = "Refresh"
         refreshButton.addActionListener { service.refreshNow() }
+        val actionsButton = JButton(AllIcons.Actions.MoreHorizontal)
+        configureIconButton(actionsButton)
+        actionsButton.toolTipText = "Git Crypt actions"
+        actionsButton.accessibleContext.accessibleName = actionsButton.toolTipText
+        actionsButton.addActionListener { showManagementActions(actionsButton) }
         val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
         actions.add(viewButton)
         actions.add(expandButton)
         actions.add(collapseButton)
+        actions.add(actionsButton)
         actions.add(refreshButton)
         toolbar.add(actions, BorderLayout.EAST)
         add(toolbar, BorderLayout.NORTH)
@@ -97,6 +117,25 @@ class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExpl
         add(JScrollPane(tree), BorderLayout.CENTER)
         service.addRefreshListener { refresh() }
         refresh()
+    }
+
+    private fun showManagementActions(anchor: JButton) {
+        val actionManager = ActionManager.getInstance()
+        val group = DefaultActionGroup()
+        MANAGEMENT_ACTION_IDS.mapNotNull(actionManager::getAction).forEach(group::add)
+        val parentContext = com.intellij.ide.DataManager.getInstance().getDataContext(this)
+        val context = DataContext { dataId ->
+            if (dataId == CommonDataKeys.PROJECT.name) project else parentContext.getData(dataId)
+        }
+        JBPopupFactory.getInstance()
+            .createActionGroupPopup(
+                "Git Crypt Actions",
+                group,
+                context,
+                JBPopupFactory.ActionSelectionAid.MNEMONICS,
+                true,
+            )
+            .showUnderneathOf(anchor)
     }
 
     fun refresh() {

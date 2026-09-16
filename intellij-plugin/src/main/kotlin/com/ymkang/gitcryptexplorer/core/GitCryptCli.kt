@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 private const val MAX_COMMAND_OUTPUT_BYTES = 1024L * 1024
 private val CLI_IO_EXECUTOR = Executors.newCachedThreadPool()
 
-class GitCryptCli(private val executable: String = "git-crypt") {
+class GitCryptCli(private val executable: String = resolveGitCryptExecutable()) {
     fun inspect(repositoryRoot: Path, gitDir: Path, hasProtectedFiles: Boolean): GitCryptRepositoryStatus {
         val installedKeyCount = countInstalledKeys(gitDir)
         return try {
@@ -96,6 +96,36 @@ class GitCryptCli(private val executable: String = "git-crypt") {
     }
 
     private data class CommandResult(val stdout: String, val stderr: String)
+}
+
+/**
+ * GUI-launched JetBrains IDEs do not always inherit the user's shell PATH.
+ * Prefer the normal PATH lookup, then check the standard Homebrew and system
+ * locations so macOS installations work without launching the IDE from a shell.
+ */
+private fun resolveGitCryptExecutable(): String {
+    val candidates = linkedSetOf<String>()
+    System.getenv("PATH")
+        ?.split(java.io.File.pathSeparator)
+        ?.filter(String::isNotBlank)
+        ?.forEach { directory ->
+            candidates += Path.of(directory).resolve("git-crypt").toString()
+            if (System.getProperty("os.name").contains("win", ignoreCase = true)) {
+                candidates += Path.of(directory).resolve("git-crypt.exe").toString()
+            }
+        }
+    candidates += listOf(
+        "/opt/homebrew/bin/git-crypt",
+        "/opt/homebrew/opt/git-crypt/bin/git-crypt",
+        "/usr/local/bin/git-crypt",
+        "/usr/local/opt/git-crypt/bin/git-crypt",
+        "/usr/bin/git-crypt",
+        "/bin/git-crypt",
+    )
+    return candidates.firstOrNull { candidate ->
+        val path = Path.of(candidate)
+        Files.isRegularFile(path) && Files.isExecutable(path)
+    } ?: "git-crypt"
 }
 
 private fun java.io.InputStream.readLimited(limit: Long): ByteArray {
