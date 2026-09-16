@@ -2,7 +2,7 @@
   "name": "git-crypt-explorer",
   "displayName": "Git Crypt Explorer",
   "description": "Highlights git-crypt protected files and provides target management, status, lock, unlock, key export, and GPG access commands.",
-  "version": "0.4.7",
+  "version": "0.4.9",
   "publisher": "YoungmukKang",
   "author": {
     "name": "YoungmukKang",
@@ -86,12 +86,6 @@
         "title": "Expand All",
         "category": "Git Crypt",
         "icon": "$(expand-all)"
-      },
-      {
-        "command": "gitCryptDecorations.collapseExplorerTree",
-        "title": "Collapse All",
-        "category": "Git Crypt",
-        "icon": "$(collapse-all)"
       },
       {
         "command": "gitCryptDecorations.initializeWithKey",
@@ -191,11 +185,6 @@
           "command": "gitCryptDecorations.expandExplorerTree",
           "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode == tree",
           "group": "navigation@4"
-        },
-        {
-          "command": "gitCryptDecorations.collapseExplorerTree",
-          "when": "view == gitCryptExplorer.repositories && gitCryptExplorer.viewMode == tree",
-          "group": "navigation@5"
         },
         {
           "command": "gitCryptDecorations.initializeWithKey",

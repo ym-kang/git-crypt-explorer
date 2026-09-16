@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.9
+
+- Fixed VS Code Tree View Expand All and Collapse All actions.
+- Kept VS Code lock decorations stable during Explorer focus changes and status evaluation.
 - Fixed PyCharm decorations and status details for symbolic links by following their targets.
 
 ## 0.4.8

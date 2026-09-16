@@ -23,7 +23,6 @@ interface DirectoryNode {
   readonly kind: 'directory';
   readonly snapshot: RepositorySnapshot;
   readonly directoryPath: string;
-  readonly expanded: boolean;
 }
 
 interface FileNode {
@@ -53,9 +52,6 @@ export class GitCryptExplorerTreeProvider
   public readonly onDidChangeTreeData = this.changeEmitter.event;
 
   private viewMode: ExplorerViewMode;
-  // Keep the first render lightweight. The extension expands the tree after the
-  // initial repository scan has completed.
-  private treeExpanded = false;
 
   public constructor(
     private readonly service: GitCryptService,
@@ -68,18 +64,10 @@ export class GitCryptExplorerTreeProvider
     return this.viewMode;
   }
 
-  public toggleViewMode(expandTree = true): ExplorerViewMode {
+  public toggleViewMode(): ExplorerViewMode {
     this.viewMode = this.viewMode === 'grouped' ? 'tree' : 'grouped';
-    if (this.viewMode === 'tree' && expandTree) {
-      this.treeExpanded = true;
-    }
     this.refresh();
     return this.viewMode;
-  }
-
-  public setTreeExpanded(expanded: boolean): void {
-    this.treeExpanded = expanded;
-    this.refresh();
   }
 
   public refresh(): void {
@@ -126,14 +114,14 @@ export class GitCryptExplorerTreeProvider
     switch (element.kind) {
       case 'repository':
         children = this.viewMode === 'tree'
-          ? treeRepositoryChildren(element.snapshot, this.treeExpanded)
+          ? treeRepositoryChildren(element.snapshot)
           : repositoryChildren(element.snapshot);
         break;
       case 'file-group':
         children = fileGroupChildren(element);
         break;
       case 'directory':
-        children = treeDirectoryChildren(element.snapshot, element.directoryPath, this.treeExpanded);
+        children = treeDirectoryChildren(element.snapshot, element.directoryPath);
         break;
       case 'file':
       case 'message':
@@ -196,7 +184,7 @@ export class GitCryptExplorerTreeProvider
           kind: 'repository',
           snapshot,
           expanded: this.viewMode === 'tree'
-            ? this.treeExpanded
+            ? false
             : status.repositories.length === 1,
         }),
       ),
@@ -290,7 +278,7 @@ function repositoryChildren(snapshot: RepositorySnapshot): TreeNode[] {
   return children;
 }
 
-function treeRepositoryChildren(snapshot: RepositorySnapshot, expanded: boolean): TreeNode[] {
+function treeRepositoryChildren(snapshot: RepositorySnapshot): TreeNode[] {
   const children: TreeNode[] = [];
 
   if (snapshot.error) {
@@ -311,13 +299,12 @@ function treeRepositoryChildren(snapshot: RepositorySnapshot, expanded: boolean)
     return children;
   }
 
-  return [...children, ...treeDirectoryChildren(snapshot, snapshot.root, expanded)];
+  return [...children, ...treeDirectoryChildren(snapshot, snapshot.root)];
 }
 
 function treeDirectoryChildren(
   snapshot: RepositorySnapshot,
   directoryPath: string,
-  expanded: boolean,
 ): TreeNode[] {
   const directories = new Map<string, DirectoryNode>();
   const files: FileNode[] = [];
@@ -354,7 +341,6 @@ function treeDirectoryChildren(
       kind: 'directory',
       snapshot,
       directoryPath: childPath,
-      expanded,
     });
   }
 
@@ -376,9 +362,7 @@ function directoryTreeItem(node: DirectoryNode): vscode.TreeItem {
   ).length;
   const item = new vscode.TreeItem(
     path.basename(node.directoryPath),
-    node.expanded
-      ? vscode.TreeItemCollapsibleState.Expanded
-      : vscode.TreeItemCollapsibleState.Collapsed,
+    vscode.TreeItemCollapsibleState.Collapsed,
   );
   item.description = warningCount > 0
     ? `${warningCount} warning${warningCount === 1 ? '' : 's'}`

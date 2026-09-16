@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const treeProvider = new GitCryptExplorerTreeProvider(service, initialViewMode);
   const treeView = vscode.window.createTreeView('gitCryptExplorer.repositories', {
     treeDataProvider: treeProvider,
-    showCollapseAll: false,
+    showCollapseAll: true,
   });
   output.info(`Tree view created. Initial view mode: ${initialViewMode}.`);
   const refreshTreeView = (): void => {
@@ -55,8 +55,6 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const expandAllExplorerTree = async (): Promise<void> => {
     output.info('Tree expansion started.');
-    treeProvider.setTreeExpanded(true);
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     const expandNode = async (node: TreeNode): Promise<void> => {
       const children = treeProvider.getChildren(node);
@@ -105,15 +103,15 @@ export function activate(context: vscode.ExtensionContext): void {
     registerAddGpgUserCommand(service, cli),
     registerFileProtectionCommands(service, () => controller.refreshNow()),
     vscode.commands.registerCommand('gitCryptDecorations.toggleExplorerView', () => {
-      const nextViewMode = treeProvider.toggleViewMode(initializationComplete);
+      const nextViewMode = treeProvider.toggleViewMode();
       updateViewModeContext();
       void context.workspaceState.update('gitCryptExplorer.viewMode', nextViewMode);
+      if (nextViewMode === 'tree' && initializationComplete) {
+        return expandAllExplorerTree();
+      }
     }),
     vscode.commands.registerCommand('gitCryptDecorations.expandExplorerTree', () => {
       return expandAllExplorerTree();
-    }),
-    vscode.commands.registerCommand('gitCryptDecorations.collapseExplorerTree', () => {
-      treeProvider.setTreeExpanded(false);
     }),
   );
 
