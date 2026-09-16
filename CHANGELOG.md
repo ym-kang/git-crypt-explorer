@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.8
+
 - Added a PyCharm Git Crypt actions menu to the explorer panel for status, initialization, lock/unlock, key export, and GPG user management.
 - Grouped the PyCharm Git Crypt commands under `Tools → Git Crypt Explorer`.
 - Made PyCharm automatically locate `git-crypt` in standard Homebrew and system locations when the IDE PATH is incomplete.
