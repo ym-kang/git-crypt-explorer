@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
@@ -37,6 +37,27 @@ test('classifies a git-crypt target with an encrypted index blob as encrypted', 
   assert.equal(service.getStatus(path.join(root, 'config.secret')), 'encrypted');
   assert.equal(service.getWorkspaceStatus().repositories[0]?.gitCryptDetected, true);
   assert.equal(service.getWorkspaceStatus().repositories[0]?.encryptedIndexFiles, 1);
+});
+
+test("applies the original file's decoration to a symlink", async (t) => {
+  const root = await createRepository(t, {
+    '.gitattributes': '*.secret filter=git-crypt diff=git-crypt\n',
+    'config.secret': 'fixture\n',
+  });
+  await stageBlob(root, 'config.secret', true);
+  await symlink('config.secret', path.join(root, 'config-link.secret'));
+  const service = await initialize(root);
+
+  assert.equal(service.getPathDecoration(path.join(root, 'config-link.secret')), 'encrypted');
+
+  await mkdir(path.join(root, 'nested'), { recursive: true });
+  await symlink('../config.secret', path.join(root, 'nested', 'config-link.secret'));
+  const nestedService = await initialize(path.join(root, 'nested'));
+
+  assert.equal(
+    nestedService.getPathDecoration(path.join(root, 'nested', 'config-link.secret')),
+    'encrypted',
+  );
 });
 
 test('uses the same all-or-partial folder decorations as the IDE plugin', async (t) => {

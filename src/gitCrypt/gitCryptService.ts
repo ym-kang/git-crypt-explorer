@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { lstatSync, readlinkSync } from 'node:fs';
 import {
   GitClient,
   GitClientLike,
@@ -88,7 +89,7 @@ export class GitCryptService {
   }
 
   public getPathDecoration(filePath: string): GitCryptPathDecoration {
-    const match = this.repositoryPathForWorkspacePath(filePath);
+    const match = this.repositoryPathForDecorationPath(filePath);
     if (!match) {
       return 'none';
     }
@@ -121,7 +122,7 @@ export class GitCryptService {
   }
 
   public getEncryptedFileCount(filePath: string): number {
-    const match = this.repositoryPathForWorkspacePath(filePath);
+    const match = this.repositoryPathForDecorationPath(filePath);
     if (!match) {
       return 0;
     }
@@ -138,7 +139,7 @@ export class GitCryptService {
   }
 
   public getStatusDetail(filePath: string): string | undefined {
-    const match = this.repositoryPathForWorkspacePath(filePath);
+    const match = this.repositoryPathForDecorationPath(filePath);
     return match?.repository.snapshot.statusDetails.get(match.repositoryPath);
   }
 
@@ -281,6 +282,35 @@ export class GitCryptService {
     return best;
   }
 
+  private repositoryPathForDecorationPath(
+    filePath: string,
+  ): { repository: MutableRepository; repositoryPath: string } | undefined {
+    const originalMatch = this.repositoryPathForWorkspacePath(filePath);
+    if (!originalMatch) {
+      return undefined;
+    }
+
+    const resolvedPath = resolveSymlinkPath(filePath);
+    if (resolvedPath === path.resolve(filePath)) {
+      return originalMatch;
+    }
+
+    const resolvedMatch = this.repositoryPathForWorkspacePath(resolvedPath);
+    if (resolvedMatch) {
+      return resolvedMatch;
+    }
+
+    const repositoryPath = repositoryPathForSymlinkTarget(
+      originalMatch.repository.location.root,
+      originalMatch.repositoryPath,
+      filePath,
+      resolvedPath,
+    );
+    return repositoryPath
+      ? { repository: originalMatch.repository, repositoryPath }
+      : originalMatch;
+  }
+
   private recordDiscoveryFailure(error: unknown): void {
     this.nonGitFolders += 1;
     if (error instanceof GitCommandError && error.unavailable) {
@@ -350,4 +380,35 @@ function safeErrorMessage(error: unknown): string {
 
 function toGitPath(filePath: string): string {
   return filePath.split(path.sep).join('/');
+}
+
+function resolveSymlinkPath(filePath: string): string {
+  const originalPath = path.resolve(filePath);
+  let currentPath = originalPath;
+  const visited = new Set<string>();
+
+  while (!visited.has(currentPath)) {
+    visited.add(currentPath);
+    try {
+      if (!lstatSync(currentPath).isSymbolicLink()) {
+        return currentPath;
+      }
+      currentPath = path.resolve(path.dirname(currentPath), readlinkSync(currentPath));
+    } catch {
+      return originalPath;
+    }
+  }
+
+  return originalPath;
+}
+
+function repositoryPathForSymlinkTarget(
+  repositoryRoot: string,
+  symlinkRepositoryPath: string,
+  symlinkPath: string,
+  resolvedPath: string,
+): string | undefined {
+  const targetRelativePath = path.relative(path.dirname(path.resolve(symlinkPath)), resolvedPath);
+  const repositoryPath = path.resolve(path.dirname(symlinkRepositoryPath), targetRelativePath);
+  return isWithin(repositoryRoot, repositoryPath) ? repositoryPath : undefined;
 }
