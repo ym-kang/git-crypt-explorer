@@ -35,6 +35,63 @@ fun selectRepository(project: Project, service: GitCryptService, event: AnAction
     return repositories.getOrNull(index)
 }
 
+/**
+ * Runs a repository operation and offers to create the Git repository when the project is still
+ * an ordinary folder. Git initialization is deliberately asynchronous because this is called from
+ * actions and may involve a slow network-mounted project folder.
+ */
+fun withSelectedRepository(
+    project: Project,
+    service: GitCryptService,
+    event: AnActionEvent,
+    operation: (RepositorySnapshot) -> Unit,
+) {
+    if (service.workspaceStatus().repositories.isNotEmpty()) {
+        selectRepository(project, service, event)?.let(operation)
+        return
+    }
+
+    val folder = contextFiles(event).firstOrNull()?.let { file ->
+        if (file.isDirectory) Path.of(file.path) else Path.of(file.parent?.path ?: file.path)
+    } ?: project.basePath?.let { Path.of(it) }
+    if (folder == null) {
+        Messages.showErrorDialog(project, "Open a project folder before initializing Git.", "Git Crypt Explorer")
+        return
+    }
+    initializeGitRepositoryWithPrompt(project, service, folder) {
+        val repository = service.workspaceStatus().repositories.firstOrNull { it.root == folder.toAbsolutePath().normalize() }
+            ?: service.workspaceStatus().repositories.singleOrNull()
+        if (repository == null) {
+            Messages.showErrorDialog(project, "Git was initialized, but the repository could not be discovered yet.", "Git Crypt Explorer")
+        } else {
+            operation(repository)
+        }
+    }
+}
+
+fun initializeGitRepositoryWithPrompt(
+    project: Project,
+    service: GitCryptService,
+    folder: Path,
+    onInitialized: () -> Unit = {},
+) {
+    val normalizedFolder = folder.toAbsolutePath().normalize()
+    val folderName = normalizedFolder.fileName?.toString() ?: normalizedFolder.toString()
+    if (Messages.showYesNoDialog(
+            project,
+            "No Git repository was detected in $folderName. Initialize Git in this folder first?",
+            "Initialize Git Repository",
+            "Initialize Git",
+            "Cancel",
+            Messages.getQuestionIcon(),
+        ) != Messages.YES) return
+
+    runInBackground(project, "Initializing Git repository", {
+        service.initializeGitRepository(normalizedFolder)
+        service.initializeAsync().join()
+    }, onInitialized)
+}
+
 fun runInBackground(project: Project, title: String, work: () -> Unit, success: () -> Unit = {}) {
     var failure: Throwable? = null
     ProgressManager.getInstance().run(object : Task.Backgroundable(project, title, true) {

@@ -303,6 +303,10 @@ class CountingGitClient implements GitClientLike {
   public nonEmptyBlobChecks = 0;
   public checkedObjectIds: string[][] = [];
 
+  public initialize(repositoryRoot: string): Promise<void> {
+    return this.delegate.initialize(repositoryRoot);
+  }
+
   public discover(cwd: string): Promise<GitRepositoryLocation> {
     return this.delegate.discover(cwd);
   }

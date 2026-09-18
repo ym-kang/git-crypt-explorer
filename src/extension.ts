@@ -11,6 +11,7 @@ import { registerFileProtectionCommands } from './commands/updateFileProtection'
 import { GitCryptDecorationProvider } from './decorations/gitCryptDecorationProvider';
 import { GitCryptCli } from './gitCrypt/gitCryptCli';
 import { GitCryptService } from './gitCrypt/gitCryptService';
+import { GitCryptSetupGuide } from './gitCrypt/setupGuide';
 import {
   ExplorerViewMode,
   GitCryptExplorerTreeProvider,
@@ -26,6 +27,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const cli = new GitCryptCli();
   const decorations = new GitCryptDecorationProvider(service);
   const controller = new WorkspaceController(service, decorations, output);
+  const setupGuide = new GitCryptSetupGuide(service, cli, () => controller.refreshNow());
   const initialViewMode = context.workspaceState.get<ExplorerViewMode>(
     'gitCryptExplorer.viewMode',
     'grouped',
@@ -92,6 +94,9 @@ export function activate(context: vscode.ExtensionContext): void {
     treeProvider,
     treeView,
     controller.onDidRefresh(refreshTreeView),
+    controller.onDidRefresh(() => {
+      void setupGuide.offer();
+    }),
     vscode.window.registerFileDecorationProvider(decorations),
     registerRefreshCommand(() => controller.refreshNow()),
     registerShowStatusCommand(() => service.getWorkspaceStatus(), cli, output),
@@ -101,7 +106,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerUnlockWithGpgCommand(service, cli, () => controller.refreshNow()),
     registerLockRepositoryCommand(service, cli, () => controller.refreshNow()),
     registerAddGpgUserCommand(service, cli),
-    registerFileProtectionCommands(service, () => controller.refreshNow()),
+    registerFileProtectionCommands(service, cli, () => controller.refreshNow()),
     vscode.commands.registerCommand('gitCryptDecorations.toggleExplorerView', () => {
       const nextViewMode = treeProvider.toggleViewMode();
       updateViewModeContext();

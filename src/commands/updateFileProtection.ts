@@ -5,21 +5,24 @@ import {
   GitCryptAttributeTarget,
   updateGitAttributes,
 } from '../gitCrypt/gitAttributes';
+import { GitCryptCli } from '../gitCrypt/gitCryptCli';
 import { GitCryptService, RepositoryResource } from '../gitCrypt/gitCryptService';
+import { gitCryptTargetOperationError } from '../gitCrypt/setupRecommendation';
 
 export function registerFileProtectionCommands(
   service: GitCryptService,
+  cli: GitCryptCli,
   refresh: () => Promise<void>,
 ): vscode.Disposable {
   const protect = vscode.commands.registerCommand(
     'gitCryptDecorations.protectFile',
     (resource?: vscode.Uri, selectedResources?: readonly vscode.Uri[]) =>
-      updateProtection('protect', service, refresh, resource, selectedResources),
+      updateProtection('protect', service, cli, refresh, resource, selectedResources),
   );
   const unprotect = vscode.commands.registerCommand(
     'gitCryptDecorations.unprotectFile',
     (resource?: vscode.Uri, selectedResources?: readonly vscode.Uri[]) =>
-      updateProtection('unprotect', service, refresh, resource, selectedResources),
+      updateProtection('unprotect', service, cli, refresh, resource, selectedResources),
   );
   return vscode.Disposable.from(protect, unprotect);
 }
@@ -27,6 +30,7 @@ export function registerFileProtectionCommands(
 async function updateProtection(
   mode: GitCryptAttributeMode,
   service: GitCryptService,
+  cli: GitCryptCli,
   refresh: () => Promise<void>,
   resource?: vscode.Uri,
   selectedResources?: readonly vscode.Uri[],
@@ -40,12 +44,45 @@ async function updateProtection(
   const changedResources: string[] = [];
   const skippedResources: string[] = [];
   try {
+    const preparedResources: Array<{
+      readonly uri: vscode.Uri;
+      readonly repositoryResource: RepositoryResource;
+      readonly target: GitCryptAttributeTarget;
+    }> = [];
     for (const uri of resources) {
       const repositoryResource = service.getRepositoryResource(uri.fsPath);
       if (!repositoryResource) {
         throw new Error(`${uri.fsPath} is not in a discovered Git repository.`);
       }
-      const target = await validateResource(uri, repositoryResource);
+      preparedResources.push({
+        uri,
+        repositoryResource,
+        target: await validateResource(uri, repositoryResource),
+      });
+    }
+
+    const inspectedRoots = new Set<string>();
+    for (const { repositoryResource } of preparedResources) {
+      if (inspectedRoots.has(repositoryResource.root)) {
+        continue;
+      }
+      inspectedRoots.add(repositoryResource.root);
+      const snapshot = service.getRepositorySnapshotForPath(repositoryResource.absolutePath);
+      if (!snapshot) {
+        throw new Error(`Could not inspect repository ${repositoryResource.root}.`);
+      }
+      const status = await cli.inspect(
+        repositoryResource.root,
+        snapshot.gitDir,
+        snapshot.protectedFiles > 0,
+      );
+      const guardError = gitCryptTargetOperationError(status);
+      if (guardError) {
+        throw new Error(guardError);
+      }
+    }
+
+    for (const { uri, repositoryResource, target } of preparedResources) {
 
       const shouldProtect = mode === 'protect';
       if (target === 'file') {

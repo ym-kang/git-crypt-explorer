@@ -161,6 +161,10 @@ export class GitCryptService {
     return [...this.repositories.values()].map((repository) => repository.location);
   }
 
+  public async initializeGitRepository(folder: string): Promise<void> {
+    await this.git.initialize(path.resolve(folder));
+  }
+
   public getRepositoryResource(filePath: string): RepositoryResource | undefined {
     const match = this.repositoryPathForWorkspacePath(filePath);
     if (!match) {

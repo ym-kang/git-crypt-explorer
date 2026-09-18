@@ -14,8 +14,12 @@ private const val MAX_ERROR_BYTES = 1024L * 1024
 private val GIT_CRYPT_HEADER = byteArrayOf(0, 0x47, 0x49, 0x54, 0x43, 0x52, 0x59, 0x50, 0x54, 0)
 private val IO_EXECUTOR = Executors.newCachedThreadPool()
 
-/** Read-only Git queries. It never invokes git-crypt or reads working-tree file contents. */
+/** Git repository queries and initialization. It never invokes git-crypt or reads working-tree file contents. */
 class GitClient(private val executable: String = "git") {
+    fun initialize(repositoryRoot: Path) {
+        run(listOf("-C", repositoryRoot.toString(), "init"), repositoryRoot)
+    }
+
     fun discover(cwd: Path): GitRepositoryLocation {
         val result = run(listOf("-C", cwd.toString(), "rev-parse", "--show-toplevel", "--absolute-git-dir", "--show-prefix"), cwd)
         val lines = result.stdout.toString(StandardCharsets.UTF_8).split(Regex("\\r?\\n"))

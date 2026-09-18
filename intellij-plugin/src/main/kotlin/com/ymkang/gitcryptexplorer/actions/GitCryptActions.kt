@@ -15,15 +15,17 @@ import com.ymkang.gitcryptexplorer.core.GitCryptAttributeTarget
 import com.ymkang.gitcryptexplorer.core.GitCryptCommandException
 import com.ymkang.gitcryptexplorer.core.GitCryptLocalState
 import com.ymkang.gitcryptexplorer.core.GitCryptService
+import com.ymkang.gitcryptexplorer.core.GitCryptRepositoryStatus
 import com.ymkang.gitcryptexplorer.core.RepositoryResource
 import com.ymkang.gitcryptexplorer.core.RepositorySnapshot
 import com.ymkang.gitcryptexplorer.core.WorkspaceStatus
 import com.ymkang.gitcryptexplorer.core.updateGitAttributes
+import com.ymkang.gitcryptexplorer.core.gitCryptTargetOperationError
 import com.ymkang.gitcryptexplorer.ui.chooseOpenFile
 import com.ymkang.gitcryptexplorer.ui.chooseSaveFile
 import com.ymkang.gitcryptexplorer.ui.contextFiles
 import com.ymkang.gitcryptexplorer.ui.runInBackground
-import com.ymkang.gitcryptexplorer.ui.selectRepository
+import com.ymkang.gitcryptexplorer.ui.withSelectedRepository
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.JTextArea
@@ -64,19 +66,20 @@ class InitializeWithKeyAction : AnAction("Initialize/Unlock with Existing Key") 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState == GitCryptLocalState.UNLOCKED) {
-            Messages.showInfoMessage(project, "This repository is already initialized and unlocked locally.", TITLE)
-            return
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState == GitCryptLocalState.UNLOCKED) {
+                Messages.showInfoMessage(project, "This repository is already initialized and unlocked locally.", TITLE)
+                return@withSelectedRepository
+            }
+            val keyFile = chooseOpenFile(project, "Select an existing git-crypt symmetric key") ?: return@withSelectedRepository
+            if (!confirm(project, "git-crypt unlock requires a clean tracked working tree and may decrypt protected files in place. Continue?", "Unlock Repository")) return@withSelectedRepository
+            runInBackground(project, "Unlocking repository with git-crypt", {
+                service.cli.unlockWithKey(repository.root, keyFile)
+                service.refreshNow().join()
+            }) { Messages.showInfoMessage(project, "Repository initialized and unlocked with the selected git-crypt key.", TITLE) }
         }
-        val keyFile = chooseOpenFile(project, "Select an existing git-crypt symmetric key") ?: return
-        if (!confirm(project, "git-crypt unlock requires a clean tracked working tree and may decrypt protected files in place. Continue?", "Unlock Repository")) return
-        runInBackground(project, "Unlocking repository with git-crypt", {
-            service.cli.unlockWithKey(repository.root, keyFile)
-            service.refreshNow().join()
-        }) { Messages.showInfoMessage(project, "Repository initialized and unlocked with the selected git-crypt key.", TITLE) }
     }
 }
 
@@ -84,18 +87,19 @@ class InitializeRepositoryAction : AnAction("Initialize New Repository") {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState == GitCryptLocalState.UNLOCKED) {
-            Messages.showInfoMessage(project, "This repository is already initialized and unlocked locally.", TITLE)
-            return
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState == GitCryptLocalState.UNLOCKED) {
+                Messages.showInfoMessage(project, "This repository is already initialized and unlocked locally.", TITLE)
+                return@withSelectedRepository
+            }
+            if (!confirm(project, "This generates a brand-new git-crypt key. Use it only for a new repository; it will not unlock files encrypted with an existing key.", "Generate New Key")) return@withSelectedRepository
+            runInBackground(project, "Initializing repository with git-crypt", {
+                service.cli.initializeRepository(repository.root)
+                service.refreshNow().join()
+            }) { Messages.showInfoMessage(project, "Repository initialized. Export the new key or add a GPG user before sharing it.", TITLE) }
         }
-        if (!confirm(project, "This generates a brand-new git-crypt key. Use it only for a new repository; it will not unlock files encrypted with an existing key.", "Generate New Key")) return
-        runInBackground(project, "Initializing repository with git-crypt", {
-            service.cli.initializeRepository(repository.root)
-            service.refreshNow().join()
-        }) { Messages.showInfoMessage(project, "Repository initialized. Export the new key or add a GPG user before sharing it.", TITLE) }
     }
 }
 
@@ -103,18 +107,19 @@ class UnlockWithGpgAction : AnAction("Unlock with GPG") {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState == GitCryptLocalState.UNLOCKED) {
-            Messages.showInfoMessage(project, "This repository is already unlocked.", TITLE)
-            return
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState == GitCryptLocalState.UNLOCKED) {
+                Messages.showInfoMessage(project, "This repository is already unlocked.", TITLE)
+                return@withSelectedRepository
+            }
+            if (!confirm(project, "git-crypt will use an authorized GPG secret key and decrypt protected working-tree files. A clean tracked working tree is required.", "Unlock with GPG")) return@withSelectedRepository
+            runInBackground(project, "Unlocking repository with GPG", {
+                service.cli.unlockWithGpg(repository.root)
+                service.refreshNow().join()
+            }) { Messages.showInfoMessage(project, "Repository unlocked with GPG.", TITLE) }
         }
-        if (!confirm(project, "git-crypt will use an authorized GPG secret key and decrypt protected working-tree files. A clean tracked working tree is required.", "Unlock with GPG")) return
-        runInBackground(project, "Unlocking repository with GPG", {
-            service.cli.unlockWithGpg(repository.root)
-            service.refreshNow().join()
-        }) { Messages.showInfoMessage(project, "Repository unlocked with GPG.", TITLE) }
     }
 }
 
@@ -122,18 +127,19 @@ class LockRepositoryAction : AnAction("Lock Repository") {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState != GitCryptLocalState.UNLOCKED) {
-            Messages.showInfoMessage(project, "This repository is already locked.", TITLE)
-            return
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState != GitCryptLocalState.UNLOCKED) {
+                Messages.showInfoMessage(project, "This repository is already locked.", TITLE)
+                return@withSelectedRepository
+            }
+            if (!confirm(project, "This re-encrypts protected working-tree files and removes all locally installed git-crypt keys. The command will refuse a dirty tracked working tree.", "Lock Repository")) return@withSelectedRepository
+            runInBackground(project, "Locking git-crypt repository", {
+                service.cli.lockRepository(repository.root)
+                service.refreshNow().join()
+            }) { Messages.showInfoMessage(project, "Repository locked.", TITLE) }
         }
-        if (!confirm(project, "This re-encrypts protected working-tree files and removes all locally installed git-crypt keys. The command will refuse a dirty tracked working tree.", "Lock Repository")) return
-        runInBackground(project, "Locking git-crypt repository", {
-            service.cli.lockRepository(repository.root)
-            service.refreshNow().join()
-        }) { Messages.showInfoMessage(project, "Repository locked.", TITLE) }
     }
 }
 
@@ -141,21 +147,22 @@ class AddGpgUserAction : AnAction("Add GPG User (No Auto-Commit)") {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState != GitCryptLocalState.UNLOCKED) {
-            Messages.showErrorDialog(project, "Unlock or initialize this repository before adding a GPG user.", TITLE)
-            return
-        }
-        val userId = Messages.showInputDialog(project, "GPG fingerprint, key ID, or email address", "Add a git-crypt GPG collaborator", Messages.getQuestionIcon()) ?: return
-        if (userId.trim().isEmpty() || userId.trim().startsWith("-") || userId.any { it == '\u0000' || it == '\r' || it == '\n' }) {
-            Messages.showErrorDialog(project, "The GPG user ID is invalid.", TITLE)
-            return
-        }
-        if (!confirm(project, "This grants the selected GPG identity access to the repository key. Generated .git-crypt files will be left uncommitted for your review.", "Add GPG User")) return
-        runInBackground(project, "Adding git-crypt GPG user", { service.cli.addGpgUser(repository.root, userId) }) {
-            Messages.showInfoMessage(project, "GPG user added. Review and commit the generated .git-crypt files manually.", TITLE)
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState != GitCryptLocalState.UNLOCKED) {
+                Messages.showErrorDialog(project, "Unlock or initialize this repository before adding a GPG user.", TITLE)
+                return@withSelectedRepository
+            }
+            val userId = Messages.showInputDialog(project, "GPG fingerprint, key ID, or email address", "Add a git-crypt GPG collaborator", Messages.getQuestionIcon()) ?: return@withSelectedRepository
+            if (userId.trim().isEmpty() || userId.trim().startsWith("-") || userId.any { it == '\u0000' || it == '\r' || it == '\n' }) {
+                Messages.showErrorDialog(project, "The GPG user ID is invalid.", TITLE)
+                return@withSelectedRepository
+            }
+            if (!confirm(project, "This grants the selected GPG identity access to the repository key. Generated .git-crypt files will be left uncommitted for your review.", "Add GPG User")) return@withSelectedRepository
+            runInBackground(project, "Adding git-crypt GPG user", { service.cli.addGpgUser(repository.root, userId) }) {
+                Messages.showInfoMessage(project, "GPG user added. Review and commit the generated .git-crypt files manually.", TITLE)
+            }
         }
     }
 }
@@ -164,22 +171,23 @@ class ExportKeyAction : AnAction("Export Key") {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val service = project.getService(GitCryptService::class.java)
-        val repository = selectRepository(project, service, event) ?: return
-        val status = inspectOrShowError(project, repository, service) ?: return
-        if (!ensureAvailable(project, status)) return
-        if (status.localState != GitCryptLocalState.UNLOCKED) {
-            Messages.showErrorDialog(project, "Unlock or initialize this repository before exporting its key.", TITLE)
-            return
+        withSelectedRepository(project, service, event) { repository ->
+            val status = inspectOrShowError(project, repository, service) ?: return@withSelectedRepository
+            if (!ensureAvailable(project, status)) return@withSelectedRepository
+            if (status.localState != GitCryptLocalState.UNLOCKED) {
+                Messages.showErrorDialog(project, "Unlock or initialize this repository before exporting its key.", TITLE)
+                return@withSelectedRepository
+            }
+            val defaultName = "${repository.root.fileName ?: "repository"}.git-crypt.key"
+            val destination = chooseSaveFile(project, "Export git-crypt symmetric key", (repository.root.parent ?: repository.root).resolve(defaultName)) ?: return@withSelectedRepository
+            val inside = destination.toAbsolutePath().normalize().startsWith(repository.root.toAbsolutePath().normalize())
+            val warning = if (inside) "The selected destination is inside the repository and could be committed accidentally. This key grants access to every protected file." else "The exported symmetric key grants access to every protected file. Store and transfer it securely."
+            if (!confirm(project, warning, "Export Key")) return@withSelectedRepository
+            runInBackground(project, "Exporting git-crypt key", {
+                val restricted = service.cli.exportKey(repository.root, destination)
+                if (!restricted) throw GitCryptCommandException("Key exported, but restrictive file permissions could not be guaranteed. Secure the file manually.")
+            }) { Messages.showInfoMessage(project, "git-crypt key exported successfully.", TITLE) }
         }
-        val defaultName = "${repository.root.fileName ?: "repository"}.git-crypt.key"
-        val destination = chooseSaveFile(project, "Export git-crypt symmetric key", (repository.root.parent ?: repository.root).resolve(defaultName)) ?: return
-        val inside = destination.toAbsolutePath().normalize().startsWith(repository.root.toAbsolutePath().normalize())
-        val warning = if (inside) "The selected destination is inside the repository and could be committed accidentally. This key grants access to every protected file." else "The exported symmetric key grants access to every protected file. Store and transfer it securely."
-        if (!confirm(project, warning, "Export Key")) return
-        runInBackground(project, "Exporting git-crypt key", {
-            val restricted = service.cli.exportKey(repository.root, destination)
-            if (!restricted) throw GitCryptCommandException("Key exported, but restrictive file permissions could not be guaranteed. Secure the file manually.")
-        }) { Messages.showInfoMessage(project, "git-crypt key exported successfully.", TITLE) }
     }
 }
 
@@ -200,11 +208,25 @@ private fun updateProtection(event: AnActionEvent, mode: GitCryptAttributeMode) 
         return
     }
     runInBackground(project, "Updating git-crypt targets", {
+        val resources = files.map { virtualFile ->
+            val resource = service.repositoryResource(Path.of(virtualFile.path))
+                ?: throw IllegalStateException("${virtualFile.path} is not in a discovered Git repository.")
+            resource to validateResource(virtualFile, resource)
+        }
+        val statusByRoot = mutableMapOf<Path, GitCryptRepositoryStatus>()
+        resources.forEach { (resource, _) ->
+            if (resource.root !in statusByRoot) {
+                val snapshot = service.repositorySnapshotForPath(resource.absolutePath)
+                    ?: throw IllegalStateException("Could not inspect repository ${resource.root}.")
+                statusByRoot[resource.root] = service.cli.inspect(resource.root, snapshot.gitDir, snapshot.protectedFiles > 0)
+            }
+        }
+        statusByRoot.values.mapNotNull(::gitCryptTargetOperationError).firstOrNull()?.let { throw GitCryptCommandException(it) }
+
         val changed = mutableListOf<String>()
         val skipped = mutableListOf<String>()
-        files.forEach { virtualFile ->
-            val resource = service.repositoryResource(Path.of(virtualFile.path)) ?: throw IllegalStateException("${virtualFile.path} is not in a discovered Git repository.")
-            val target = validateResource(virtualFile, resource)
+        files.zip(resources).forEach { (virtualFile, resourceWithTarget) ->
+            val (resource, target) = resourceWithTarget
             val shouldProtect = mode == GitCryptAttributeMode.PROTECT
             if (target == GitCryptAttributeTarget.FILE && service.isProtectedFile(resource.absolutePath) == shouldProtect) {
                 skipped += virtualFile.name

@@ -21,6 +21,7 @@ dependencies {
         intellijIdeaCommunity("2025.2.6.2")
         testFramework(TestFrameworkType.Platform)
     }
+    testImplementation("junit:junit:4.13.2")
 }
 
 tasks {

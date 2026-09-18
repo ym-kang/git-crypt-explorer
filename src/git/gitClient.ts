@@ -30,6 +30,7 @@ export interface GitIndexEntry {
 }
 
 export interface GitClientLike {
+  initialize(repositoryRoot: string): Promise<void>;
   discover(cwd: string): Promise<GitRepositoryLocation>;
   listFiles(repositoryRoot: string): Promise<readonly string[]>;
   checkFilter(
@@ -48,9 +49,13 @@ interface GitResult {
   readonly stderr: Buffer;
 }
 
-/** Runs read-only Git queries. It never invokes git-crypt or reads working-tree file contents. */
+/** Runs Git repository queries and initialization. It never invokes git-crypt or reads working-tree file contents. */
 export class GitClient implements GitClientLike {
   public constructor(private readonly executable = 'git') {}
+
+  public async initialize(repositoryRoot: string): Promise<void> {
+    await this.run(['-C', repositoryRoot, 'init'], repositoryRoot);
+  }
 
   public async discover(cwd: string): Promise<GitRepositoryLocation> {
     const result = await this.run(

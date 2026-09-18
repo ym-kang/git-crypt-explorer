@@ -8,13 +8,17 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import com.ymkang.gitcryptexplorer.core.GitCryptService
+import com.ymkang.gitcryptexplorer.core.GitCryptRepositoryStatus
 import com.ymkang.gitcryptexplorer.core.GitCryptStatus
+import com.ymkang.gitcryptexplorer.core.GitCryptSetupRecommendation
 import com.ymkang.gitcryptexplorer.core.RepositorySnapshot
+import com.ymkang.gitcryptexplorer.core.recommendGitCryptSetup
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.event.MouseAdapter
@@ -49,6 +53,8 @@ class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExpl
     private val tree = JTree(DefaultTreeModel(rootNode))
     private var isTreeView = PropertiesComponent.getInstance(project).getBoolean(TREE_VIEW_KEY, false)
     private var treeExpanded = true
+    private var promptedGitInitialization = false
+    private val promptedSetupRepositories = mutableSetOf<Path>()
 
     private sealed interface ExplorerNode
     private data class RepositoryNode(val snapshot: RepositorySnapshot) : ExplorerNode
@@ -168,8 +174,91 @@ class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExpl
             } else if (!isTreeView && status.repositories.size == 1) {
                 tree.expandRow(0)
             }
+            offerGuidedSetup(status)
         }
     }
+
+    private fun offerGuidedSetup(status: com.ymkang.gitcryptexplorer.core.WorkspaceStatus) {
+        if (status.repositories.isEmpty()) {
+            if (!promptedGitInitialization && status.nonGitFolders > 0 && !status.gitUnavailable) {
+                promptedGitInitialization = true
+                project.basePath?.let { basePath ->
+                    initializeGitRepositoryWithPrompt(project, service, Path.of(basePath))
+                }
+            }
+            return
+        }
+
+        status.repositories
+            .filter { it.root !in promptedSetupRepositories }
+            .forEach { repository ->
+                promptedSetupRepositories.add(repository.root)
+                var inspected: GitCryptRepositoryStatus? = null
+                runInBackground(project, "Checking git-crypt setup", {
+                    inspected = service.cli.inspect(repository.root, repository.gitDir, repository.protectedFiles > 0)
+                }) {
+                    inspected?.let { offerRepositorySetup(repository, it) }
+                }
+            }
+    }
+
+    private fun offerRepositorySetup(repository: RepositorySnapshot, status: GitCryptRepositoryStatus) {
+        if (!status.available) return
+
+        when (recommendGitCryptSetup(true, repository.protectedFiles, status.localState)) {
+            GitCryptSetupRecommendation.UNLOCK -> offerUnlock(repository)
+            GitCryptSetupRecommendation.INITIALIZE_GIT_CRYPT -> offerGitCryptInitialization(repository)
+            else -> Unit
+        }
+    }
+
+    private fun offerGitCryptInitialization(repository: RepositorySnapshot) {
+        if (Messages.showYesNoDialog(
+                project,
+                "No git-crypt targets or local key were found in ${repository.root.fileName ?: repository.root}. Initialize it with a new key?",
+                "Initialize git-crypt",
+                "Initialize",
+                "Later",
+                Messages.getQuestionIcon(),
+            ) != Messages.YES) return
+        runInBackground(project, "Initializing repository with git-crypt", {
+            service.cli.initializeRepository(repository.root)
+            service.refreshNow().join()
+        }) {
+            Messages.showInfoMessage(project, "Repository initialized with a new git-crypt key. Export the key or add a GPG user before sharing it.", "Git Crypt Explorer")
+        }
+    }
+
+    private fun offerUnlock(repository: RepositorySnapshot) {
+        val choice = Messages.showChooseDialog(
+            project,
+            "Protected git-crypt files were found, but this repository is locked. Unlock now?",
+            "Unlock git-crypt repository",
+            Messages.getQuestionIcon(),
+            arrayOf("Unlock with GPG", "Use an existing key", "Later"),
+            "Unlock with GPG",
+        )
+        when (choice) {
+            0 -> if (confirmGuidedAction("git-crypt will use an authorized GPG key and decrypt protected files in the working tree.", "Unlock with GPG")) {
+                runInBackground(project, "Unlocking repository with GPG", {
+                    service.cli.unlockWithGpg(repository.root)
+                    service.refreshNow().join()
+                }) { Messages.showInfoMessage(project, "Repository unlocked with GPG.", "Git Crypt Explorer") }
+            }
+            1 -> {
+                val keyFile = chooseOpenFile(project, "Select an existing git-crypt symmetric key") ?: return
+                if (confirmGuidedAction("git-crypt will use the selected key and decrypt protected files in the working tree.", "Unlock Repository")) {
+                    runInBackground(project, "Unlocking repository with git-crypt", {
+                        service.cli.unlockWithKey(repository.root, keyFile)
+                        service.refreshNow().join()
+                    }) { Messages.showInfoMessage(project, "Repository unlocked with the selected git-crypt key.", "Git Crypt Explorer") }
+                }
+            }
+        }
+    }
+
+    private fun confirmGuidedAction(message: String, action: String) =
+        Messages.showYesNoDialog(project, message, "Git Crypt Explorer", action, "Cancel", Messages.getWarningIcon()) == Messages.YES
 
     private fun updateViewButton(button: JButton) {
         button.text = null

@@ -95,6 +95,10 @@ class GitCryptService(private val project: Project) : Disposable {
 
     fun repositoryLocations(): List<GitRepositoryLocation> = synchronized(this) { repositories.values.map { it.location } }
 
+    fun initializeGitRepository(folder: Path) {
+        git.initialize(folder.toAbsolutePath().normalize())
+    }
+
     fun statusForPath(filePath: Path): GitCryptStatus {
         val normalized = filePath.toAbsolutePath().normalize()
         val match = repositoryPathForWorkspacePath(normalized) ?: return GitCryptStatus.NONE
