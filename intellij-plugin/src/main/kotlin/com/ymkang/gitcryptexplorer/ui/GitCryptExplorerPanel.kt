@@ -4,7 +4,8 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.CustomizedDataContext
+import com.intellij.openapi.actionSystem.DataProvider
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -130,9 +131,9 @@ class GitCryptExplorerPanel(private val project: Project) : JBPanel<GitCryptExpl
         val group = DefaultActionGroup()
         MANAGEMENT_ACTION_IDS.mapNotNull(actionManager::getAction).forEach(group::add)
         val parentContext = com.intellij.ide.DataManager.getInstance().getDataContext(this)
-        val context = DataContext { dataId ->
+        val context = CustomizedDataContext.withProvider(parentContext, DataProvider { dataId ->
             if (dataId == CommonDataKeys.PROJECT.name) project else parentContext.getData(dataId)
-        }
+        })
         JBPopupFactory.getInstance()
             .createActionGroupPopup(
                 "Git Crypt Actions",

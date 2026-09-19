@@ -42,6 +42,13 @@ class GitClient(private val executable: String = "git") {
     fun listIndexEntries(repositoryRoot: Path): List<GitIndexEntry> =
         parseIndexEntries(run(listOf("-C", repositoryRoot.toString(), "ls-files", "--stage", "-z"), repositoryRoot).stdout)
 
+    fun readIndexedBlob(repositoryRoot: Path, relativePath: String): GitIndexedBlob {
+        val entry = listIndexEntries(repositoryRoot).firstOrNull { it.path == relativePath && it.stage == 0 }
+            ?: throw GitCommandException("The selected file is not present in the Git index.")
+        val contents = run(listOf("-C", repositoryRoot.toString(), "cat-file", "blob", entry.objectId), repositoryRoot).stdout
+        return GitIndexedBlob(relativePath, entry.objectId, contents)
+    }
+
     fun checkBlobEncryption(repositoryRoot: Path, objectIds: List<String>): Map<String, Boolean> {
         val unique = objectIds.distinct()
         if (unique.isEmpty()) return emptyMap()

@@ -76,6 +76,11 @@
         "icon": "$(output)"
       },
       {
+        "command": "gitCryptDecorations.showIndexedCiphertext",
+        "title": "Show Indexed Ciphertext",
+        "category": "Git Crypt"
+      },
+      {
         "command": "gitCryptDecorations.toggleExplorerView",
         "title": "Switch List/Tree View",
         "category": "Git Crypt",
@@ -150,6 +155,11 @@
     "menus": {
       "explorer/context": [
         {
+          "command": "gitCryptDecorations.showIndexedCiphertext",
+          "when": "resourceScheme == file",
+          "group": "gitCrypt@0"
+        },
+        {
           "command": "gitCryptDecorations.protectFile",
           "when": "resourceScheme == file",
           "group": "gitCrypt@1"
@@ -158,6 +168,20 @@
           "command": "gitCryptDecorations.unprotectFile",
           "when": "resourceScheme == file",
           "group": "gitCrypt@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "gitCryptDecorations.showIndexedCiphertext",
+          "when": "resourceScheme == file",
+          "group": "gitCrypt@0"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitCryptDecorations.showIndexedCiphertext",
+          "when": "view == gitCryptExplorer.repositories && viewItem == gitCryptEncryptedFile",
+          "group": "gitCrypt@0"
         }
       ],
       "view/title": [

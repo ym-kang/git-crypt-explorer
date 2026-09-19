@@ -4,6 +4,7 @@ import {
   GitClient,
   GitClientLike,
   GitCommandError,
+  GitIndexedBlob,
   GitIndexEntry,
   GitRepositoryLocation,
 } from '../git/gitClient';
@@ -185,6 +186,17 @@ export class GitCryptService {
     }
     const filters = await this.git.checkFilter(repositoryFile.root, [repositoryFile.relativePath]);
     return filters.get(repositoryFile.relativePath) === 'git-crypt';
+  }
+
+  public async readIndexedCiphertext(filePath: string): Promise<GitIndexedBlob | undefined> {
+    if (this.getStatus(filePath) !== 'encrypted') {
+      return undefined;
+    }
+    const repositoryFile = this.getRepositoryResource(filePath);
+    if (!repositoryFile) {
+      return undefined;
+    }
+    return this.git.readIndexedBlob(repositoryFile.root, repositoryFile.relativePath);
   }
 
   private async refresh(repository: MutableRepository): Promise<void> {

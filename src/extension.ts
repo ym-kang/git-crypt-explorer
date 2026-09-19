@@ -6,6 +6,7 @@ import { registerInitializeRepositoryCommand } from './commands/initializeReposi
 import { registerLockRepositoryCommand } from './commands/lockRepository';
 import { registerRefreshCommand } from './commands/refresh';
 import { registerShowStatusCommand } from './commands/showStatus';
+import { registerShowIndexedCiphertextCommand } from './commands/showIndexedCiphertext';
 import { registerUnlockWithGpgCommand } from './commands/unlockWithGpg';
 import { registerFileProtectionCommands } from './commands/updateFileProtection';
 import { GitCryptDecorationProvider } from './decorations/gitCryptDecorationProvider';
@@ -100,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerFileDecorationProvider(decorations),
     registerRefreshCommand(() => controller.refreshNow()),
     registerShowStatusCommand(() => service.getWorkspaceStatus(), cli, output),
+    registerShowIndexedCiphertextCommand(service),
     registerInitializeWithKeyCommand(service, cli, () => controller.refreshNow()),
     registerExportKeyCommand(service, cli),
     registerInitializeRepositoryCommand(service, cli, () => controller.refreshNow()),

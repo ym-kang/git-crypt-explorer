@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
@@ -60,6 +60,22 @@ test('SC-004: encryption target changes require an installed unlocked key', () =
     }),
     'git-crypt is not initialized locally. Initialize or unlock the repository before changing encryption targets.',
   );
+});
+
+test('SC-005: encrypted index content can be read without changing the working tree', async (t) => {
+  const folder = await createEmptyFolder(t);
+  const encryptedContents = Buffer.from([0x00, 0x47, 0x49, 0x54, 0x43, 0x52, 0x59, 0x50, 0x54, 0x00, 0x01]);
+  const git = new GitClient();
+  await git.initialize(folder);
+  await writeFile(path.join(folder, 'secret.py'), encryptedContents);
+  await execFileAsync('git', ['add', '--', 'secret.py'], { cwd: folder });
+  const statusBefore = (await execFileAsync('git', ['status', '--short', '--', 'secret.py'], { cwd: folder })).stdout;
+
+  const blob = await git.readIndexedBlob(folder, 'secret.py');
+
+  assert.equal(blob.path, 'secret.py');
+  assert.equal(blob.contents.equals(encryptedContents), true);
+  assert.equal((await execFileAsync('git', ['status', '--short', '--', 'secret.py'], { cwd: folder })).stdout, statusBefore);
 });
 
 async function createEmptyFolder(t: TestContext): Promise<string> {

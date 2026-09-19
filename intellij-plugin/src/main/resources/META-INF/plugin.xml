@@ -53,5 +53,9 @@
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last" />
             <add-to-group group-id="EditorPopupMenu" anchor="last" />
         </action>
+        <action id="com.ymkang.gitcryptexplorer.ShowIndexedCiphertext" class="com.ymkang.gitcryptexplorer.actions.ShowIndexedCiphertextAction" text="Show Indexed Ciphertext" description="Show the encrypted blob stored in the Git index">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last" />
+            <add-to-group group-id="EditorPopupMenu" anchor="last" />
+        </action>
     </actions>
 </idea-plugin>

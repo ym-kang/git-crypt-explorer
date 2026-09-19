@@ -14,6 +14,8 @@ with an existing symmetric key and export the currently installed key.
   plaintext index blob.
 - Adds a dedicated Activity Bar view with repository summaries, protected files, and warnings.
 - Adds or removes file and folder encryption targets from the Explorer context menu.
+- Adds a `Show Indexed Ciphertext` context-menu command for encrypted files, displaying a bounded
+  read-only hex preview of the Git index blob.
 - Decorates folders directly so full and partial protection can be distinguished.
 - Supports multiple workspace folders and deduplicates folders belonging to the same repository.
 - Refreshes after `.gitattributes`, file-list, branch, checkout, or index changes.
@@ -108,6 +110,8 @@ Add an Explorer screenshot here before publishing:
 - **Git Crypt: Show Status** — opens an output report with Git detection, git-crypt detection,
   CLI availability, local initialization state, target count, encrypted-index count, and warning
   count.
+- **Git Crypt: Show Indexed Ciphertext** — available for encrypted files; opens a read-only hex
+  preview of the stage-0 Git index blob without changing the working-tree file.
 - **Git Crypt: Initialize/Unlock with Existing Key** — selects an existing symmetric key and runs
   `git-crypt unlock KEY_FILE`. This can decrypt protected working-tree files and requires a clean
   tracked working tree.
@@ -225,7 +229,9 @@ Decoration and status scans process repository paths, Git attribute values, inde
 version, and the presence/count of locally installed key entries. They never open working-tree
 secret files or key files. Index inspection streams blob data from Git, retains only the first 10
 bytes long enough to compare the git-crypt header, clears that temporary prefix buffer, and does
-not log blob data.
+not log blob data. The explicit `Show Indexed Ciphertext` command can display a bounded hex
+preview of the indexed blob (up to 64 KiB) in a temporary read-only view; it does not modify the
+working tree or log the blob contents.
 
 Key operations run only from explicit Command Palette actions after file selection and a modal
 confirmation:

@@ -29,6 +29,12 @@ export interface GitIndexEntry {
   readonly stage: number;
 }
 
+export interface GitIndexedBlob {
+  readonly path: string;
+  readonly objectId: string;
+  readonly contents: Buffer;
+}
+
 export interface GitClientLike {
   initialize(repositoryRoot: string): Promise<void>;
   discover(cwd: string): Promise<GitRepositoryLocation>;
@@ -38,6 +44,7 @@ export interface GitClientLike {
     repositoryRelativePaths: readonly string[],
   ): Promise<ReadonlyMap<string, string>>;
   listIndexEntries(repositoryRoot: string): Promise<readonly GitIndexEntry[]>;
+  readIndexedBlob(repositoryRoot: string, relativePath: string): Promise<GitIndexedBlob>;
   checkBlobEncryption(
     repositoryRoot: string,
     objectIds: readonly string[],
@@ -108,6 +115,20 @@ export class GitClient implements GitClientLike {
       repositoryRoot,
     );
     return parseIndexEntries(result.stdout);
+  }
+
+  public async readIndexedBlob(repositoryRoot: string, relativePath: string): Promise<GitIndexedBlob> {
+    const entry = (await this.listIndexEntries(repositoryRoot)).find(
+      (candidate) => candidate.path === relativePath && candidate.stage === 0,
+    );
+    if (!entry) {
+      throw new GitCommandError('The selected file is not present in the Git index.', false);
+    }
+    const result = await this.run(
+      ['-C', repositoryRoot, 'cat-file', 'blob', entry.objectId],
+      repositoryRoot,
+    );
+    return { path: relativePath, objectId: entry.objectId, contents: result.stdout };
   }
 
   public checkBlobEncryption(

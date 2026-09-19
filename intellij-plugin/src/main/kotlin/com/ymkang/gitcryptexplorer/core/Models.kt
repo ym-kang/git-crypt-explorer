@@ -41,6 +41,12 @@ data class GitIndexEntry(
     val stage: Int,
 )
 
+data class GitIndexedBlob(
+    val path: String,
+    val objectId: String,
+    val contents: ByteArray,
+)
+
 data class RepositorySnapshot(
     val root: Path,
     val gitDir: Path,

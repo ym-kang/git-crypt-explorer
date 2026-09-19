@@ -2,6 +2,8 @@ package com.ymkang.gitcryptexplorer.actions
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
@@ -16,6 +18,8 @@ import com.ymkang.gitcryptexplorer.core.GitCryptCommandException
 import com.ymkang.gitcryptexplorer.core.GitCryptLocalState
 import com.ymkang.gitcryptexplorer.core.GitCryptService
 import com.ymkang.gitcryptexplorer.core.GitCryptRepositoryStatus
+import com.ymkang.gitcryptexplorer.core.GitCryptStatus
+import com.ymkang.gitcryptexplorer.core.GitIndexedBlob
 import com.ymkang.gitcryptexplorer.core.RepositoryResource
 import com.ymkang.gitcryptexplorer.core.RepositorySnapshot
 import com.ymkang.gitcryptexplorer.core.WorkspaceStatus
@@ -199,6 +203,31 @@ class UnprotectFileAction : AnAction("Remove from Encryption Targets") {
     override fun actionPerformed(event: AnActionEvent) = updateProtection(event, GitCryptAttributeMode.UNPROTECT)
 }
 
+class ShowIndexedCiphertextAction : AnAction("Show Indexed Ciphertext") {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+    override fun update(event: AnActionEvent) {
+        val project = event.project
+        val file = event.getData(CommonDataKeys.VIRTUAL_FILE)
+        event.presentation.isEnabledAndVisible = project != null && file != null &&
+            project.getService(GitCryptService::class.java).statusForPath(Path.of(file.path)) == GitCryptStatus.ENCRYPTED
+    }
+
+    override fun actionPerformed(event: AnActionEvent) {
+        val project = event.project ?: return
+        val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        val service = project.getService(GitCryptService::class.java)
+        var blob: GitIndexedBlob? = null
+        runInBackground(project, "Reading indexed ciphertext", {
+            blob = service.readIndexedCiphertext(Path.of(file.path))
+                ?: throw IllegalStateException("The selected file is not an encrypted Git index blob.")
+        }) {
+            val indexedBlob = blob ?: return@runInBackground
+            Messages.showMessageDialog(project, formatIndexedCiphertext(indexedBlob), "Indexed Ciphertext", Messages.getInformationIcon())
+        }
+    }
+}
+
 private fun updateProtection(event: AnActionEvent, mode: GitCryptAttributeMode) {
     val project = event.project ?: return
     val service = project.getService(GitCryptService::class.java)
@@ -246,6 +275,28 @@ private fun validateResource(file: VirtualFile, resource: RepositoryResource): G
     if (file.isDirectory && resource.absolutePath.toAbsolutePath().normalize() == resource.root.toAbsolutePath().normalize()) throw IllegalStateException("The repository root cannot be added as a recursive git-crypt target.")
     if (!file.isDirectory && file.name == ".gitattributes") throw IllegalStateException(".gitattributes cannot itself be a git-crypt target.")
     return if (file.isDirectory) GitCryptAttributeTarget.DIRECTORY else GitCryptAttributeTarget.FILE
+}
+
+private fun formatIndexedCiphertext(blob: GitIndexedBlob): String {
+    val previewLimit = 64 * 1024
+    val preview = blob.contents.copyOf(minOf(blob.contents.size, previewLimit))
+    val lines = mutableListOf(
+        "Path: ${blob.path}",
+        "Object: ${blob.objectId}",
+        "Size: ${blob.contents.size} bytes",
+        if (blob.contents.size > preview.size) "Preview: first ${preview.size} bytes" else "Preview: complete blob",
+        "",
+    )
+    preview.asList().chunked(16).forEachIndexed { index, bytes ->
+        val offset = "%08x".format(index * 16)
+        val hex = bytes.joinToString(" ") { "%02x".format(it.toInt() and 0xff) }.padEnd(47)
+        val text = bytes.joinToString("") { byte ->
+            val value = byte.toInt() and 0xff
+            if (value in 32..126) value.toChar().toString() else "."
+        }
+        lines += "$offset  $hex  |$text|"
+    }
+    return lines.joinToString("\n")
 }
 
 private fun editNearestAttributesFile(project: Project, resource: RepositoryResource, mode: GitCryptAttributeMode, target: GitCryptAttributeTarget): Boolean {

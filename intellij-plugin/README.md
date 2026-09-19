@@ -27,7 +27,8 @@ distribution under `build/distributions/`.
 
 The plugin provides a **Git Crypt Explorer** tool window, repository snapshots, encrypted/warning
 file groups, project-view decorations, automatic refreshes, status reporting, key export,
-initialization, GPG unlock/user management, lock, and `.gitattributes` target editing.
+initialization, GPG unlock/user management, lock, `.gitattributes` target editing, and a
+read-only `Show Indexed Ciphertext` preview for encrypted files.
 
 Project View decorations use `🔒` when every scanned file below a folder is encrypted, `🔒 × n`
 when the folder contains `n` encrypted files alongside unprotected files, and `!` when a warning

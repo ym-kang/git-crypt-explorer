@@ -185,6 +185,12 @@ class GitCryptService(private val project: Project) : Disposable {
         return git.checkFilter(resource.root, listOf(resource.relativePath))[resource.relativePath] == "git-crypt"
     }
 
+    fun readIndexedCiphertext(filePath: Path): GitIndexedBlob? {
+        if (statusForPath(filePath) != GitCryptStatus.ENCRYPTED) return null
+        val resource = repositoryResource(filePath) ?: return null
+        return git.readIndexedBlob(resource.root, resource.relativePath)
+    }
+
     override fun dispose() {
         scheduledRefresh?.cancel(false)
         scheduler.shutdownNow()
