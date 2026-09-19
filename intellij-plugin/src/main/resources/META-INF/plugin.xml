@@ -20,7 +20,6 @@
         <editorTabTitleProvider
                 implementation="com.ymkang.gitcryptexplorer.ui.GitCryptEditorTabTitleProvider"
                 order="first" />
-        <titleInfoProvider implementation="com.ymkang.gitcryptexplorer.ui.GitCryptTitleInfoProvider" />
     </extensions>
 
     <actions>

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.4.11
+
+- Removed the IntelliJ project-window title integration that depended on the private `TitleInfoProvider` API, so the plugin can pass Marketplace Plugin Verifier checks.
+- Kept git-crypt status decorations in the Project View and editor tabs through supported extension points.
+
 ## 0.4.10
 
 - Added `Show Indexed Ciphertext` in VS Code and IntelliJ Platform plugins for bounded, read-only previews of encrypted Git index blobs.

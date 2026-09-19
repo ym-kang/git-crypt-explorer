@@ -8,7 +8,6 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.openapi.wm.impl.TitleInfoProvider
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.nio.file.LinkOption
@@ -295,7 +294,6 @@ class GitCryptService(private val project: Project) : Disposable {
             ProjectView.getInstance(project).refresh()
             val fileEditorManager = FileEditorManager.getInstance(project)
             fileEditorManager.openFiles.forEach(fileEditorManager::updateFilePresentation)
-            TitleInfoProvider.fireConfigurationChanged()
             listeners.forEach { listener ->
                 try { listener() } catch (_: Exception) { /* UI listeners must not break refreshes. */ }
             }
