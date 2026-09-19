@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.12
+
+- Replaced the deprecated string-based `DataContext.getData(String)` call with the supported `DataKey` API for Marketplace Plugin Verifier compatibility.
+
 ## 0.4.11
 
 - Removed the IntelliJ project-window title integration that depended on the private `TitleInfoProvider` API, so the plugin can pass Marketplace Plugin Verifier checks.
