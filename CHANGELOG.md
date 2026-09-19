@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.10
+
+- Added `Show Indexed Ciphertext` in VS Code and IntelliJ Platform plugins for bounded, read-only previews of encrypted Git index blobs.
+- Added guided Git and git-crypt repository setup, including initialization with a new key and unlocking with GPG or an existing key.
+- Improved repository selection and target-management safeguards by checking git-crypt availability and local repository state before operations.
+- Added IntelliJ setup guidance, action-context support, and scenario coverage for the new workflows.
+
 ## 0.4.9
 
 - Fixed VS Code Tree View Expand All and Collapse All actions.

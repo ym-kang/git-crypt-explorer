@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.ymkang"
-version = "0.4.8"
+version = "0.4.10"
 
 kotlin {
     jvmToolchain(21)
