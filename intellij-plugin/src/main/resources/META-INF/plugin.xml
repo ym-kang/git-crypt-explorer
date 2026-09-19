@@ -2,8 +2,6 @@
     <id>com.ymkang.gitcryptexplorer</id>
     <name>Git Crypt Explorer</name>
     <vendor url="https://github.com/ym-kang">Youngmuk Kang</vendor>
-    <icon>icons/icon.png</icon>
-
     <description><![CDATA[
         <p>Shows git-crypt protected files and provides repository status and key-management actions.</p>
         <p>Requires the <code>git</code>, <code>git-crypt</code>, and <code>gpg</code> command-line tools

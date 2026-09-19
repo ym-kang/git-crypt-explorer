@@ -25,13 +25,6 @@ dependencies {
 }
 
 tasks {
-    // Reuse the VS Code marketplace icon for the IntelliJ Platform plugin.
-    processResources {
-        from(rootProject.file("../images/icon.png")) {
-            into("icons")
-        }
-    }
-
     test {
         useJUnit()
     }
