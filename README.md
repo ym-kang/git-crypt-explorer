@@ -90,13 +90,15 @@ repository the working-tree file can remain plaintext while still showing `🔒`
 blob is encrypted. VS Code's `FileDecoration` badge is intended for very short strings, so the
 lock/count badge is kept compact rather than using a full custom icon.
 
-## Screenshot
+## Screenshots
 
-Add an Explorer screenshot here before publishing:
+The Explorer shows lock decorations for protected files and folders:
 
-<!-- Suggested file: images/git-crypt-explorer.png -->
+![VS Code Explorer showing git-crypt lock decorations](images/screenshots/Screenshot%202026-09-19%20at%2009.34.30.png)
 
-> Screenshot placeholder: Explorer showing lock badges next to protected files.
+The Git Crypt Explorer panel summarizes repositories, encrypted files, and warnings:
+
+![Git Crypt Explorer panel showing encrypted files and repository status](images/screenshots/Screenshot%202026-09-19%20at%2009.34.41.png)
 
 ## Commands
 
